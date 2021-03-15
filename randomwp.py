@@ -1,3 +1,4 @@
+import ntpath
 import time
 from global_hotkeys import *
 import itertools
@@ -14,14 +15,129 @@ import threading
 import win32gui
 import subprocess
 
-import sys
+def Log(*msgs):
+    log = open(LOGFILE, "a+")
+    for msg in msgs:
+        print(msg, end='')
+        log.write(str(msg))
+    log.write('\n')
+    print('')
+    log.close()
 
+def GetFileList():
+    filenames = []
+    for folderpath in PICFOLDER:
+        for path, _, files in os.walk(os.path.abspath(folderpath)):
+            for file in files:
+                if file.endswith('.png') or file.endswith('.jpg'):
+                    filenames.append(os.path.join(path, file))
+                    # print(os.path.join(path, file))
+                else:
+                    print('Not image',file)
+            # Comment to use recursive files
+            break
+    return filenames
 
-def makeimg(grid):
+def UpdateWithHist(filenames):
+    global WPIndex
+    global WPlist
+    fHist = open(HISTFILE, 'r')
+    for line in fHist.read().splitlines():
+        if os.path.exists(line):
+            file = line
+            try:
+                filenames.remove(file)
+                WPlist.append(file)
+                WPIndex += 1
+            except ValueError:
+                Log('{0} in Hist not found in current search area'.format(file))
+        elif '--------------' in line:
+            filenames = GetFileList()
+            WPlist = []
+            WPIndex = -1
+    if WPIndex > 0: 
+        WPIndex += 1
+        WPIndex -= SIZE
+    Log('History size:', len(WPlist))
+    if len(WPlist) % SIZE != 0:
+        for _ in range(SIZE - len(WPlist) % SIZE):
+            WPlist.insert(0, BLACKPATH)
+            WPIndex += 1
+    return filenames
+
+def LogWP(filepaths):
+    log = open(HISTFILE, "a+")
+    time = datetime.datetime.now()
+    log.write("TIME : "+str(time)+'\n')
+    for file in filepaths:
+        log.write(file+'\n')
+    log.close()
+
+def SetNewWP():
+    Log('New Wallpaper')
+    global WPlist
+    global WPIndex
+    filepaths = GetRandom()
+    LogWP(filepaths)
+    WPlist.extend(filepaths)
+    SetWP(filepaths)
+
+def GetRandom():
+    global filenames
+    global SIZE
+    global GridDim
+    if len(filenames) < SIZE:
+        LogWP(['---------------------------------'])
+        filenames = GetFileList()
+        if len(filenames) >= SIZE:
+            Log('>>>Finished one cycle, restarting<<<')
+        else:
+            Log('<<<Grid needs more images than available in given path, using 1x1')
+            GridDim = [1,1]
+            SIZE = 1            
+    Log('Random Sampling {0} from {1} files'.format(SIZE, len(filenames)))
+    rdfiles = random.sample(filenames, SIZE)
+    for file in rdfiles:
+        filenames.remove(file)
+    return rdfiles
+
+def SetWP(filepaths):
+    if DryRun:
+        for p in filepaths:
+            print(p)
+        return
+    Log('Setting Wallpaper')
+    pathgrid = MakeGridPath(filepaths)
+    if pathgrid is not None:
+        wallpaper = MakeGridImage(pathgrid)
+        cv2.imwrite(WPPATH, wallpaper)
+        SPI_SETDESKWALLPAPER = 20
+        ctypes.windll.user32.SystemParametersInfoW(
+            SPI_SETDESKWALLPAPER, 0, WPPATH, 0)
+        Log('Wallpaper set!')
+    else:
+        Log('>>>Wallpaper NOT set!')
+
+def MakeGridPath(filepaths):
+    if len(filepaths) < SIZE:
+        Log('>>>len(grid)[{0}] < SIZE[{1}]'.format(len(filepaths),SIZE))
+        return None
+    else:
+        paths = []
+        for path in filepaths:
+            if not os.path.exists(path):
+                path = BLACKPATH
+            paths.append(cv2.imread(path))
+        grid = []
+        for row in range(GridDim[0]):
+            finalCol = []
+            for col in range(GridDim[1]):
+                finalCol.append(paths[row*GridDim[1]+col])
+            grid.append(finalCol)
+        return grid
+
+def MakeGridImage(cv2Grid):
     interpolation = cv2.INTER_CUBIC
-    # if 'cv2' not in sys.modules:
-    #     import cv2
-
     def hjoin(imgs):
         h_min = min(img.shape[0] for img in imgs)
         resized_imgs = []
@@ -30,7 +146,6 @@ def makeimg(grid):
             resized_img = cv2.resize(img, dim, interpolation=interpolation)
             resized_imgs.append(resized_img)
         return cv2.hconcat(resized_imgs)
-
     def vjoin(imgs):
         w_min = min(img.shape[1] for img in imgs)
         resized_imgs = []
@@ -39,273 +154,188 @@ def makeimg(grid):
             resized_img = cv2.resize(img, dim, interpolation=interpolation)
             resized_imgs.append(resized_img)
         return cv2.vconcat(resized_imgs)
-
     if True:
-        hjoined = [hjoin(row) for row in grid]
+        hjoined = [hjoin(row) for row in cv2Grid]
         vjoined = vjoin(hjoined)
         final = vjoined
     else:
-        vjoined = [vjoin(row) for row in grid]
+        vjoined = [vjoin(row) for row in cv2Grid]
         hjoined = hjoin(vjoined)
         final = hjoined
     return final
 
-
-def getrandom(path):
-    log('Random Sampling {0}'.format(rows*cols))
-    _, _, filenames = next(walk(path))
-    rdfiles = random.sample(filenames, rows*cols)
-    filepaths = []
-    for file in rdfiles:
-        filepaths.append(os.path.join(os.path.abspath(path), file))
-    return filepaths
-
-
-def makepathgrid(filepaths):
-    paths = []
-    for path in filepaths:
-        if not os.path.exists(path):
-            path = blackpath
-        paths.append(cv2.imread(path))
-    grid = []
-    for row in range(rows):
-        finalCol = []
-        for col in range(cols):
-            finalCol.append(paths[row*cols+col])
-        grid.append(finalCol)
-    return grid
-
-
-def logwallpaper(filepaths):
-    log = open(logpath, "a")
-    time = datetime.datetime.now()
-    log.write("TIME : "+str(time)+'\n')
-    for file in filepaths:
-        log.write(file+'\n')
-    log.close()
-
-
-def log(*msgs):
-    log = open(logFile, "a")
-    for msg in msgs:
-        print(msg, end='')
-        log.write(msg)
-    log.write('\n')
-    print('')
-    log.close()
-
-
-def setwallpaper(filepaths):
-    log('   Setting Wallpaper')
-    pathgrid = makepathgrid(filepaths)
-    wallpaper = makeimg(pathgrid)
-    cv2.imwrite(wppath, wallpaper)
-    SPI_SETDESKWALLPAPER = 20
-    ctypes.windll.user32.SystemParametersInfoW(
-        SPI_SETDESKWALLPAPER, 0, wppath, 0)
-    log('   Wallpaper set!')
-
-
-def fillhistory():
-    destpath = r'C:\Users\Kalyanam\Pictures\groupedwallpaper.txt'
-    log = open(destpath, "r")
-    histbatch = []
-    hist = []
-    for line in log:
-        if "Wallpapers" not in line:
-            if histbatch != []:
-                hist.append(histbatch)
-            histbatch = []
-        else:
-            histbatch.append(line[:-1])
-    if histbatch != []:
-        hist.append(histbatch)
-    global wpset
-    wpset = hist
-
-
-def freshwallpaper():
-    log('Fresh Wallpaper')
-    global wpset
-    global wpindex
-    filepaths = getrandom(path)
-    logwallpaper(filepaths)
-    wpset.append(filepaths)
-    setwallpaper(filepaths)
-
-
-def nextwallpaper(sysTrayIcon=None):
-    global wpindex
-    global wpset
-    global pathindex
-    pathindex = -1
-    wpindex += 1
-    if wpindex == len(wpset):
-        freshwallpaper()
+def NextWP(sysTrayIcon=None):
+    global WPIndex
+    global ViewIndex
+    if WPIndex == -1:
+        WPIndex = -SIZE
+    WPIndex += SIZE
+    if len(WPlist) == 0 or len(WPlist) == WPIndex:
+        Log('\tNext Wallpaper [{0}/{1}/{2}]'.format(WPIndex//SIZE+1,len(WPlist)//SIZE+1,len(filenames)//SIZE))
+        SetNewWP()
     else:
-        if wpindex < 0:
-            wpindex = 0
-        setwallpaper(wpset[wpindex])
-    log('Next Wallpaper {0}/{1}'.format(wpindex+1, len(wpset)))
-    # sysTraytext = 2/1
+        Log('\tNext Wallpaper [{0}/{1}/{2}]'.format(WPIndex//SIZE+1,len(WPlist)//SIZE,len(filenames)//SIZE))
+        if WPIndex < -1 and DryRun:
+            print('here2')
+            exit()
+        SetWP(WPlist[WPIndex:WPIndex+SIZE])
+    ViewIndex = 0
 
-
-def prevwallpaper(sysTrayIcon=None):
-    global wpindex
-    global wpset
-    if wpset == []:
-        freshwallpaper()
+def PrevWP(sysTrayIcon=None):
+    global WPIndex
+    global ViewIndex
+    if WPIndex == -SIZE or WPIndex == 0:
+        WPIndex = -1
+    elif WPIndex != -1:
+        WPIndex -= SIZE
+    elif WPIndex < -1:
+        print('here3')
+        exit()
+    Log('\tPrev Wallpaper [{0}/{1}/{2}]'.format(WPIndex//SIZE+1,len(WPlist)//SIZE,len(filenames)//SIZE))
+    if WPlist == []:
+        Log('>>>No wallpapers in list, use next wallpaper')
     else:
-        wpindex -= 1
-        if wpindex <= -1:
-            log('Reached first wallpaper in stack, no more previous exist')
-            wpindex = -1
-            SPI_SETDESKWALLPAPER = 20
-            ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, blackpath, 0)
+        if WPIndex == -1:
+            Log('Reached first wallpaper in stack, no more previous exist')
+            if DryRun:
+                print('Black wallpaper')
+            else:
+                SPI_SETDESKWALLPAPER = 20
+                ctypes.windll.user32.SystemParametersInfoW(
+                    SPI_SETDESKWALLPAPER, 0, BLACKPATH, 0)
         else:
-            setwallpaper(wpset[wpindex])
-    log('Prev Wallpaper {0}/{1}'.format(wpindex+1, len(wpset)))
-
+            # print("{0}[{1}:{1}+{2}]".format(len(WPlist),WPIndex,SIZE))
+            SetWP(WPlist[WPIndex:WPIndex+SIZE])
+    ViewIndex = -1
 
 cleared = False
-def clearwallpaper(sysTrayIcon=None):
+def ClearWP(sysTrayIcon=None):
     global cleared
     if cleared:
-        log('WP-ing (restoring)')
-        path = wppath
+        Log('WP-ing (restoring)')
+        path = WPPATH
     else:
-        log('Black-ing')
-        path = blackpath
+        Log('Black-ing')
+        path = BLACKPATH
     SPI_SETDESKWALLPAPER = 20
     ctypes.windll.user32.SystemParametersInfoW(
         SPI_SETDESKWALLPAPER, 0, path, 0)
     cleared = not cleared
 
-
-def viewnextwallpaper(sysTrayIcon=None):
-    global pathindex
-    paths = wpset[wpindex]
-    pathindex += 1
-    if pathindex >= len(paths):
-        pathindex = 0
-    if wpindex == -1:
-        log('Nothing to show, cleared bg')
+def ViewNextWP(sysTrayIcon=None):
+    global ViewIndex
+    if WPIndex < 0:
+        Log('Nothing to show, cleared bg')
     else:
+        paths = WPlist[WPIndex:WPIndex+SIZE]
+        ViewIndex += 1
+        if ViewIndex >= len(paths):
+            ViewIndex = 0
         available = 0
         for path in paths:
             if os.path.exists(path):
                 available += 1
         if available != 0:
-            log('View wallpaper {0}/{1}'.format(pathindex, len(paths)))
-            if not os.path.exists(paths[pathindex]):
-                viewnextwallpaper()
-            subprocess.run(['explorer', paths[pathindex]])
+            Log('View wallpaper {0}/{1}'.format(ViewIndex+1, len(paths)))
+            if not os.path.exists(paths[ViewIndex]):
+                ViewNextWP()
+            subprocess.run(['explorer', paths[ViewIndex]])
         else:
-            log('All wallpapers deleted in this set')
+            Log('All wallpapers deleted in this set')
 
-def viewprevwallpaper(sysTrayIcon=None):
-    global pathindex
-    paths = wpset[wpindex]
-    pathindex -= 1
-    if pathindex < 0:
-        pathindex = len(paths) - 1
-    if wpindex == -1:
-        log('Nothing to show, cleared bg')
+def ViewPrevWP(sysTrayIcon=None):
+    global ViewIndex
+    if WPIndex < 0:
+        Log('Nothing to show, cleared bg')
     else:
+        paths = WPlist[WPIndex:WPIndex+SIZE]
+        ViewIndex -= 1
+        if ViewIndex < 0:
+            ViewIndex = len(paths) - 1
         available = 0
         for path in paths:
             if os.path.exists(path):
                 available += 1
         if available != 0:
-            log('View wallpaper {0}/{1}'.format(pathindex, len(paths)))
-            if not os.path.exists(paths[pathindex]):
-                viewprevwallpaper()
-            subprocess.run(['explorer', paths[pathindex]])
+            Log('View wallpaper {0}/{1}'.format(ViewIndex+1, len(paths)))
+            if not os.path.exists(paths[ViewIndex]):
+                ViewPrevWP()
+            subprocess.run(['explorer', paths[ViewIndex]])
         else:
-            log('All wallpapers deleted in this set')
+            Log('All wallpapers deleted in this set')
 
+def WPChanger(stime=300):
+    import time
+    #ClearWP()
+    time.sleep(stime)
+    while True:
+        if not cleared:
+            NextWP()
+        time.sleep(stime)
 
-# def config(sysTrayIcon=None):
-#     proc = subprocess.Popen(['python', 'input(gridsize)'],
-#                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-#     out, err = proc.communicate()
-#     print(out, err)
+# def Quit():
+#     systray.shutdown()
+#     exit()
 
-
-def Quit():
-    systray.shutdown()
-    exit()
-
-
-def bye(sysTrayIcon):
-    log('Quitting from systray')
+def SysTrayQuit(sysTrayIcon):
+    Log('Quitting from systray')
     os._exit(1)
     # Quit()
 
-
-menu_options = (
-    ('Prev Wallpaper', None, prevwallpaper),
-    ('Next Wallpaper', None, nextwallpaper),
-    ('View NWallpaper', None, viewnextwallpaper),
-    ('View PWallpaper', None, viewprevwallpaper),
-    ('Clear Wallpaper', None, clearwallpaper)
-    # ('Config', None, config)
-)
-
-systray = SysTrayIcon(r'C:\Users\Kalyanam\Pictures\wallpaper.ico',
-                      hover_text="Wallpaper Setter", menu_options=menu_options, on_quit=bye)
-systray.start()
-
-
-def wallpaperchanger(stime=300):
-    import time
-    clearwallpaper()
-    time.sleep(stime)
-    while True:
-        nextwallpaper()
-        time.sleep(stime)
-
-
-path = r'C:\Users\Kalyanam\Pictures\Wallpapers\\'
-logpath = r'C:\Users\Kalyanam\Pictures\WallpaperHistory.txt'
-logFile = r'C:\Users\Kalyanam\Pictures\WallpaperLog.txt'
-wppath = r'C:\Users\Kalyanam\Pictures\Wallpaper.jpg'
-blackpath = r'C:\Users\Kalyanam\Pictures\black.jpg'
-
-gridsize = [3, 3]
-rows = gridsize[0]
-cols = gridsize[1]
-refrshrate = 300
-wpset = []
-# fillhistory()
-wpindex = -1
-pathindex = -1
-
-t1 = threading.Thread(target=wallpaperchanger)
-t1.start()
-# t1.join()
-
-is_alive = True
-
-
-def exit_application():
+def ExitFromHotkeys():
     global is_alive
     stop_checking_hotkeys()
     is_alive = False
-    Quit()
+    # Quit()
+    systray.shutdown()
+    exit()
 
+PICFOLDER = [
+    # r'C:\Users\Kalyanam\Pictures\latest\\',
+    r'C:\Users\Kalyanam\Pictures\Wallpapers\\'
+    ]
+HISTFILE = r'C:\Users\Kalyanam\Pictures\WallpaperHistory.txt'
+LOGFILE = r'C:\Users\Kalyanam\Pictures\WallpaperLog.txt'
+WPPATH = r'C:\Users\Kalyanam\Pictures\Wallpaper.jpg'
+BLACKPATH = r'C:\Users\Kalyanam\Pictures\black.jpg'
 
-# Declare some key bindings.
-# These take the format of [<key list>, <keydown handler callback>, <keyup handler callback>]
+GridDim = [3, 3]
+SIZE = GridDim[0] * GridDim[1]
+WPlist = []
+WPIndex = -1
+ViewIndex = -1
+
+filenames = []
+filenames = GetFileList()
+filenames = UpdateWithHist(filenames)
+DryRun = False
+
+menu_options = (
+    ('Prev Wallpaper', None, PrevWP),
+    ('Next Wallpaper', None, NextWP),
+    ('View NWallpaper', None, ViewNextWP),
+    ('View PWallpaper', None, ViewPrevWP),
+    ('Clear Wallpaper', None, ClearWP)
+    # ('Config', None, config)
+)
+
 bindings = [
-    [["control", "alt", "q"], None, exit_application],
-    [["control", "alt", "n"], None, nextwallpaper],
-    [["control", "alt", "p"], None, prevwallpaper],
-    [["control", "alt", "v"], None, viewnextwallpaper],
-    [["control", "shift", "v"], None, viewprevwallpaper],
-    # [["control", "alt", "shift", "v"], None, viewprevwallpaper],
-    [["control", "alt", "c"], None, clearwallpaper]
+    [["control", "alt", "q"], None, ExitFromHotkeys],
+    [["control", "alt", "n"], None, NextWP],
+    [["control", "alt", "p"], None, PrevWP],
+    [["control", "alt", "v"], None, ViewNextWP],
+    [["control", "shift", "v"], None, ViewPrevWP],
+    [["control", "alt", "c"], None, ClearWP]
 ]
+
+t1 = threading.Thread(target=WPChanger)
+t1.start()
+
+systray = SysTrayIcon(r'C:\Users\Kalyanam\Pictures\wallpaper.ico',
+                      hover_text="Wallpaper Setter", menu_options=menu_options, on_quit=SysTrayQuit)
+systray.start()
+
+is_alive = True
 register_hotkeys(bindings)
 start_checking_hotkeys()
 while is_alive:
