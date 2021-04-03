@@ -14,6 +14,7 @@ from infi.systray import SysTrayIcon
 import threading
 import win32gui
 import subprocess
+import winshell
 
 def Log(*msgs):
     log = open(LOGFILE, "a+")
@@ -101,6 +102,21 @@ def GetRandom():
         filenames.remove(file)
     return rdfiles
 
+shell = winshell.shortcut()
+def CreateShortcuts(filepaths,shpath):
+    for filename in os.listdir(shpath):
+        file_path = os.path.join(shpath, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+    for i,filepath in enumerate(filepaths):
+        shpath = SHPATH + "\\{0}.{1}.lnk".format(i+1,os.path.splitext(os.path.basename(filepath))[0])
+        shell.lnk_filepath = shpath
+        shell.path = filepath
+        shell.write()
+
 def SetWP(filepaths):
     if DryRun:
         for p in filepaths:
@@ -108,6 +124,7 @@ def SetWP(filepaths):
         return
     Log('Setting Wallpaper')
     pathgrid = MakeGridPath(filepaths)
+    CreateShortcuts(filepaths,SHPATH)
     if pathgrid is not None:
         wallpaper = MakeGridImage(pathgrid)
         cv2.imwrite(WPPATH, wallpaper)
@@ -179,7 +196,7 @@ def NextWP(sysTrayIcon=None):
             print('here2')
             exit()
         SetWP(WPlist[WPIndex:WPIndex+SIZE])
-    ViewIndex = 0
+    ViewIndex = -1
 
 def PrevWP(sysTrayIcon=None):
     global WPIndex
@@ -298,6 +315,9 @@ HISTFILE = r'C:\Users\Kalyanam\Pictures\WallpaperHistory.txt'
 LOGFILE = r'C:\Users\Kalyanam\Pictures\WallpaperLog.txt'
 WPPATH = r'C:\Users\Kalyanam\Pictures\Wallpaper.jpg'
 BLACKPATH = r'C:\Users\Kalyanam\Pictures\black.jpg'
+SHPATH = r'C:\Users\Kalyanam\Pictures\WPs'
+if not os.path.exists(SHPATH):
+    os.makedirs(SHPATH)
 
 GridDim = [3, 3]
 SIZE = GridDim[0] * GridDim[1]

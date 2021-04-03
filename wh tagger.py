@@ -4,12 +4,13 @@ import json
 
 class ExifTool(object):
     sentinel = "{ready}\r\n"
-    def __init__(self, executable=r'H:\temp\wh\exiftool.exe'):
+    def __init__(self, executable=r'G:\My Files\Utiities\exiftool.exe'):
         self.executable = executable
     def __enter__(self):
         self.process = subprocess.Popen(
             [self.executable, "-stay_open", "True",  "-@", "-"],
             universal_newlines=True,
+			encoding='utf-8',
             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         return self
     def  __exit__(self, exc_type, exc_value, traceback):
@@ -26,17 +27,28 @@ class ExifTool(object):
         return output[:-len(self.sentinel)]
 
 from pathlib import Path
-rootdir = r'C:\Users\Kalyanam\Pictures\Wallpapers'
+# rootdir = '/home/srikanth/temp/WH/Wallpapers'
+#rootdir = r'H:\temp\wh'
+rootdirs = [r'C:\Users\Kalyanam\Pictures\Wallpapers', r'C:\Users\Kalyanam\Pictures\latest']
+#rootdir = r'C:\Users\Kalyanam\Pictures\Wallpapers'
+#rootdir = r'C:\Users\Kalyanam\Pictures\latest'
 
 paths = []
-for path in Path(rootdir).rglob('wallhaven*.*'):
-	paths.append(path)
+for rootdir in rootdirs:
+	for path in Path(rootdir).rglob('wallhaven*.*'):
+		paths.append(path)
 paths.sort()
 invalids = []
-invalid = open('invalid.txt','r')
+invalid = open('invalid.txt','r+')
 for line in invalid.readlines():
 	invalids.append(line[:-1])
 invalid.close()
+
+taggeds = []
+tagged = open('tagged.txt','r+')
+for line in tagged.readlines():
+	taggeds.append(line[:-1])
+tagged.close()
 
 import wallhaven as wh
 from wallhaven import Wallhaven
@@ -45,10 +57,12 @@ import json
 import os
 import subprocess
 import time
-api=''
+apif = open('whapi.txt')
+api=apif.readline()
 wallhaven = Wallhaven(api)
 wallhaven.REQUEST_TIMEOUT = 0
 invalid = open('invalid.txt','a+')
+tagged = open('tagged.txt','a+')
 with ExifTool() as exif:
 	for i, path in enumerate(paths):
 		print(i+1,path, flush = True, end = ' ')
@@ -61,6 +75,8 @@ with ExifTool() as exif:
 				try:
 					if str(path) in invalids:
 						raise wh.exceptions.PageNotFoundError
+					if str(path) in taggeds:
+						break
 					data = wallhaven.get_wallpaper_info(wallpaper_id=id)
 					tags = data['tags']
 					args = []
@@ -94,6 +110,10 @@ with ExifTool() as exif:
 						print("Request Limit Error too many times(EXITING)",limit)
 						exit()
 					time.sleep(1)
+				# except UnicodeEncodeError:
+				# 	print('!! UnicodeEncodeError')
+				# 	break
 		else:
 			print('=', re.search('.*: (.*)',str(subject)).group(1))
+			tagged.write(str(path)+' = '+re.search('.*: (.*)',str(subject)).group(1))
 print('done')
