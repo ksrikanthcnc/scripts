@@ -49,6 +49,12 @@ param (
     [ValidateSet(".",":",$false,$true)]$Verbose = $false,
 #Short verbose char
     [string]$VerbChar = ":",
+#Beep sound
+    [Switch]$Beep = $false,
+#Beep duration
+    [int]$BeepDur = 100,
+#Beep pitch
+    [int]$BeepPitch = 500,
 #Type to use
     [ValidateSet("Event","WhileTrue")]$Type = 'Event'
 )
@@ -70,6 +76,10 @@ Get-Variable -Include ('Help','Text','ReSize','Beta','Server','SleepMS','WhileSl
 
 if($type -ne 'WhileTrue' -and $PSBoundParameters.ContainsKey('WhileSleepMS')){
     Write-Host "WhileSleepMS applicable only if type is WhileTrue" -ForegroundColor Red
+}
+
+if($PSBoundParameters.ContainsKey('BeepDur') -or $PSBoundParameters.ContainsKey('BeepPitch')){
+    $Beep = $true
 }
 
 if($Verbose -eq $true){$Verbose = ':'}
@@ -190,6 +200,9 @@ try{
                                     $Text =$OriginalText
                                 }
                                 Write-Host "";Write-Host -NoNewline $Text -ForegroundColor $color
+                                if ($Beep) {
+                                    [console]::beep($BeepPitch,$BeepDur)
+                                }
                             }else{
                                 $color = 'Red'
                                 Write-Host "[x]$($ping.ErrorCategory_Reason)" -NoNewline -ForegroundColor $color
@@ -237,6 +250,9 @@ try{
                         $Text =$OriginalText
                     }
                     Write-Host -NoNewline $Text -ForegroundColor $color
+                    if ($Beep) {
+                        [console]::beep($BeepPitch,$BeepDur)
+                    }
                     $count = 0
                 }
             }
