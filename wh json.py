@@ -25,14 +25,12 @@ for rootdir in rootdirs:
 		paths.append(path)
 paths.sort()
 
-# fetched = []
 ids = []
 with open('jsons.txt','r+') as file:
 	for line in file.readlines():
 		ids.append(json.loads(line[:-1])['id'])
-		# fetched.append(line[:-1])
 
-apif = open('../whapi.txt')
+apif = open('whapi.txt')
 api=apif.readline()
 wallhaven = Wallhaven(api)
 wallhaven.REQUEST_TIMEOUT = 0
