@@ -2,6 +2,11 @@ import subprocess
 import os
 import json
 import sys
+import re
+import json
+import os
+from shutil import copyfile,move
+import subprocess
 
 from pathlib import Path
 if len(sys.argv) > 1:
@@ -21,48 +26,46 @@ for rootdir in rootdirs:
 		paths.append(path)
 paths.sort()
 
-import re
-import json
-import os
-from shutil import copyfile
-import subprocess
 jsons = {}
 with open('jsons.txt','r+') as file:
 	for line in file.readlines():
 		jsob = json.loads(line[:-1])
 		jsons[jsob['id']] = jsob
 
-jsons = open('jsons.txt','r')
-
-data ={'purity':'init'}
+folder = ""
+dest = ''
 for i, path in enumerate(paths):
-	print(len(paths)-i, end='--',flush = True)
 	id = re.search('wallhaven-(.*).(jpg|png)', str(path)).group(1)
+	print(len(paths)-i,id, end='--',flush = True)
 	try:
-		data = jsons[id]
-		dest = "{0}\\foldered\{1}\{2}".format(os.path.dirname(path),data['purity'],os.path.basename(path))
-		print(data['purity'], dest)
-		if not os.path.exists(os.path.dirname(dest)):
-			os.makedirs(os.path.dirname(dest))
+		folder = jsons[id]['purity']
+	except KeyError:
+		if id in jsons:
+			folder = 'invalid'
+		else:
+			print('Run wh jsons.py to update jsons')
+			continue
+	except Exception as e:
+		# print("Exception [{0}]:[{1!r}]".format(type(e).__name__,e.args))
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+		print(rf"{type(e).__name__}@{fname}:{exc_tb.tb_lineno}")
+
+	print(folder,end = '')
+	dest = "{0}\\foldered\{1}\{2}".format(os.path.dirname(path),folder,os.path.basename(path))
+	if not os.path.exists(os.path.dirname(dest)):
+		os.makedirs(os.path.dirname(dest))
+	try:
 		os.rename(path,dest)
 		# copyfile(path,dest)
-		break
 	except FileExistsError:
-		print('Skipping, file already exists')
-		data['purity'] = 'repeated'
-		dest = "{0}\\foldered\{1}\{2}".format(os.path.dirname(path),data['purity'],os.path.basename(path))
-		print(data['purity'], dest)
+		print('(repeated)',end='')
+		folder = 'repeated'
+		dest = "{0}\\foldered\{1}\{2}".format(os.path.dirname(path),folder,os.path.basename(path))
 		if not os.path.exists(os.path.dirname(dest)):
 			os.makedirs(os.path.dirname(dest))
-		try:
-			os.rename(path,dest)
-		except FileExistsError:
-			pass
-		break
+		move(path,dest)
 	except FileNotFoundError:
-		print('Skipping, file not found')
-		break
-	except Exception as e:
-		print("Exception [{0}]:[{1!r}]".format(type(e).__name__,e.args))
-		break
+		print('(Skipping, file not found)')
+	print('')
 print('done')
