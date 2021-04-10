@@ -7,8 +7,8 @@ import json
 import os
 from shutil import copyfile,move
 import subprocess
-
 from pathlib import Path
+
 if len(sys.argv) > 1:
 	rootdirs = sys.argv[1:]
 	print('Using paths from args passed')
