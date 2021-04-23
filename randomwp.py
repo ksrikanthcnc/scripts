@@ -144,7 +144,9 @@ def MakeGridPath(filepaths):
         for path in filepaths:
             if not os.path.exists(path):
                 path = BLACKPATH
-            paths.append(cv2.imread(path))
+            im = cv2.imread(path)
+            im = cv2.copyMakeBorder(im, PAD, PAD, PAD, PAD, cv2.BORDER_CONSTANT, None, 0)
+            paths.append(im)
         grid = []
         for row in range(GridDim[0]):
             finalCol = []
@@ -321,6 +323,7 @@ if not os.path.exists(SHPATH):
 
 GridDim = [3, 3]
 SIZE = GridDim[0] * GridDim[1]
+PAD = 20
 WPlist = []
 WPIndex = -1
 ViewIndex = -1

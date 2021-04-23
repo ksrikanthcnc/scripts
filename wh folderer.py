@@ -21,6 +21,7 @@ else:
 
 paths = []
 for rootdir in rootdirs:
+	print(rootdir)
     # rglob for recursive
 	for path in Path(rootdir).glob('wallhaven*.*'):
 		paths.append(path)
