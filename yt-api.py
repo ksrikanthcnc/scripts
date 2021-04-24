@@ -4,22 +4,16 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import InstalledAppFlow
 import http.client,httplib2
+import sys
 
 class YT:
-	CLIENT_SECRETS_FILE = 'client_secret.json'
+	CLIENT_SECRETS_FILE = './creds/client_secret.json'
 	# CREDENTIALS = 'credentials.json'
-	PICKLE = 'cred.pickle'
+	PICKLE = './creds/cred.pickle'
 	SCOPES = ['https://www.googleapis.com/auth/youtube','https://www.googleapis.com/auth/youtube.upload']
 	API_SERVICE_NAME = 'youtube'
 	API_VERSION = 'v3'
 	yt = None
-
-	RETRIABLE_EXCEPTIONS = (httplib2.HttpLib2Error, IOError, http.client.NotConnected,
-							http.client.IncompleteRead, http.client.ImproperConnectionState,
-							http.client.CannotSendRequest, http.client.CannotSendHeader,
-							http.client.ResponseNotReady, http.client.BadStatusLine)
-	RETRIABLE_STATUS_CODES = [500, 502, 503, 504]
-	MAX_RETRIES = 10
 
 	def __init__(self):
 		print('Init YT Service')
@@ -38,7 +32,10 @@ class YT:
 			else:
 				print('Opening Web-Browser to get OAuth cred/token')
 				flow = InstalledAppFlow.from_client_secrets_file(self.CLIENT_SECRETS_FILE, self.SCOPES)
-				cred = flow.run_local_server()
+				if len(sys.argv) > 1 and sys.argv[1] == 'link':
+					cred = flow.run_console()
+				else:
+					cred = flow.run_local_server()
 			with open(self.PICKLE, 'wb') as token:
 				print(f'Caching cred to pickle [{self.PICKLE}]')
 				pickle.dump(cred, token)
@@ -50,8 +47,19 @@ class YT:
 			print('Unable to connect.')
 			print(e)
 			self.yt = None
+		if len(sys.argv) > 1 and sys.argv[1] == 'link':
+			print('Creds fetched')
+			exit()
 	
 	def upload(self,args):
+		# Not used in this script
+		RETRIABLE_EXCEPTIONS = (httplib2.HttpLib2Error, IOError, http.client.NotConnected,
+								http.client.IncompleteRead, http.client.ImproperConnectionState,
+								http.client.CannotSendRequest, http.client.CannotSendHeader,
+								http.client.ResponseNotReady, http.client.BadStatusLine)
+		RETRIABLE_STATUS_CODES = [500, 502, 503, 504]
+		MAX_RETRIES = 10
+	
 		def _upload(request):
 			response = None
 			error = None
@@ -66,30 +74,30 @@ class YT:
 					if response is not None:
 						if 'id' in response:
 							id = {response["id"]}
-							print(f'Uploaded Video id "{id}"')
+							print(f'Uploaded Video id [{id}]')
 							return id
 						else:
 							exit(f'Upload failed:{response}')
 				except HttpError as e:
-					if e.resp.status in self.RETRIABLE_STATUS_CODES:
+					if e.resp.status in RETRIABLE_STATUS_CODES:
 						error = f'A retriable HTTP error {e.resp.status} occurred:\n{e.content}'
 					else:
 						raise
-				except self.RETRIABLE_EXCEPTIONS as e:
+				except RETRIABLE_EXCEPTIONS as e:
 					error = f'A retriable error occurred: {e}'
 
 			if error is not None:
 				print(error)
 				retry += 1
-				if retry > self.MAX_RETRIES:
+				if retry > MAX_RETRIES:
 					exit('No longer attempting to retry.')
 				max_sleep = 2 ** retry
 				import random, time
 				sleep_seconds = random.random() * max_sleep
-				print (f'Sleeping {sleep_seconds} seconds and then retrying...')
+				print (f'Sleeping [{sleep_seconds}] seconds and then retrying...')
 				time.sleep(sleep_seconds)
 	
-		print(f'Title:{args["title"]}')
+		print(f'Title:[{args["title"]}]')
 		body = {
 			'snippet':{
 				'title':args['title'],
@@ -111,6 +119,34 @@ class YT:
 		id = _upload(resumable_upload)
 		return id
 
+	def update(self, args):
+		print(rf'Updating metadata')
+		print(args['title'])
+		for line in args['description'].split('\n')[:3]:
+			print(line)
+		response = self.yt.videos().list(
+			id=args['id'],
+			part='snippet,status'
+		).execute()
+
+		if not response['items']:
+			exit(f'[{args["id"]}] not found (Is it uploaded?)')
+		snippet = response['items'][0]['snippet']
+		status = response['items'][0]['status']
+
+		for key,value in args.items():
+			snippet[key] = value
+		status['selfDeclaredMadeForKids'] =  False
+		
+		self.yt.videos().update(
+			part='snippet,status',
+			body=dict(
+				snippet = snippet,
+				status = status,
+				id=args['id']
+			)
+		).execute()
+
 	def thumbnail(self,args):
 		print(f'Setting thumbnail[{args["file"]}] to videoId [{args["id"]}]')
 		self.yt.thumbnails().set(
@@ -121,6 +157,21 @@ class YT:
 	def playlistize(self, args):
 		# https://github.com/tokland/youtube-upload
 		print('Updating playlists')
+		def _is_in_playlist(id,playlistId):
+			request = self.yt.playlistItems().list(
+				part='snippet',
+				playlistId=playlistId,
+				maxResults=50
+			)
+
+			while request:
+				results = request.execute()
+				for item in results['items']:
+					if item['snippet']['resourceId']['videoId'] == id and '#' in item['snippet']['title']:
+						return True
+				request = self.yt.playlistItems().list_next(request, results)
+			return False
+
 		def _get_playlist(title):
 			request = self.yt.playlists().list(
 				mine = True,
@@ -129,24 +180,22 @@ class YT:
 			while request:
 				results = request.execute()
 				for item in results["items"]:
-					t = item.get("snippet", {}).get("title")
-					# existing_playlist_title = (t.encode(current_encoding) if hasattr(t, 'decode') else t)
-					if t == title:
+					if item["snippet"]["title"] == title:
 						print('existing')
 						return item.get("id")
 				request = self.yt.playlists().list_next(request, results)
 
 		def _create_playlist(title,privacy = 'public'):
-			print(f"creating [{title}]")
+			print(f"creating")
 			response = self.yt.playlists().insert(
 				part="snippet,status",
 				body={
-					"snippet": {"title": title,},
-					"status": {"privacyStatus": privacy,}
+					"snippet": {"title": title},
+					"status": {"privacyStatus": privacy}
 				}).execute()
 			return response.get("id")
 
-		def _add_to_playlist(playlist_id, video_id):
+		def _add_to_playlist(video_id, playlist_id):
 			print(f"Adding [{video_id}] to playlist: [{playlist_id}]")
 			return self.yt.playlistItems().insert(
 				part="snippet",
@@ -161,27 +210,58 @@ class YT:
 			}).execute()
 
 		for playlist in args['playlists']:
-			print(f'{playlist}:')
+			print(f'\t[{playlist}]:',end='',flush=True)
 			playlist_id = _get_playlist(playlist) or _create_playlist(playlist)
+			print(f'\t[{playlist_id}]')
 			if playlist_id:
-				return self._add_to_playlist(playlist_id, args['id'])
+				if not _is_in_playlist(id,playlist_id):
+					_add_to_playlist(args['id'], playlist_id)
+				else:
+					print(f'[{id}] already in [{playlist}], not adding')
 			else:
-				print("Error adding video to playlist")
+				exit("Error adding video to playlist")
 
 	def get_num(self,args):
-		print(f'Getting playlist [{args["title"]}] count')
+		def _num_in_playlist(id,playlistId):
+			request = self.yt.playlistItems().list(
+				part='snippet',
+				playlistId=playlistId,
+				maxResults=50
+			)
+
+			while request:
+				results = request.execute()
+				for item in results['items']:
+					if item['snippet']['resourceId']['videoId'] == id and '#' in item['snippet']['title']:
+						print(f'[{id}] already in playlist [{playlistId}] (#{item["snippet"]["title"].split("#")[1]})')
+						return item['snippet']['title'].split('#')[1]
+				request = self.yt.playlistItems().list_next(request, results)
+			return False
+
+		print(f'Getting num(#) from playlist [{args["title"]}] count')
 		request = self.yt.playlists().list(
 			mine = True,
-			part='id,snippet,contentDetails'
+			part='id,snippet,contentDetails',
+			maxResults=50
 		)
 		while request:
 			results = request.execute()
 			for item in results["items"]:
-				t = item.get("snippet", {}).get("title")
-				# existing_playlist_title = (t.encode(current_encoding) if hasattr(t, 'decode') else t)
-				if t == args['title']:
-					return item.get("contentDetails").get("itemCount")
+				if item["snippet"]["title"] == args['title']:
+					num = _num_in_playlist(args['id'],item['id']) or item["contentDetails"]["itemCount"] + 1
+					print(f'Retrieved and using(existing or +1) number(#{num}) from [{args["title"]}]')
+					return num
 			request = self.yt.playlists().list_next(request, results)
+		print(f'Playlist [{args["title"]}] doesnt exist, using number #1')
+	
+	def get_file(self,id):
+		print(f'Getting file name of [{id}]:',end = '',flush=True)
+		request = self.yt.videos().list(
+			part='fileDetails',
+			id=id,
+		).execute()
+		print(f"[{request['items'][0]['fileDetails']['fileName']}]")
+		return request['items'][0]['fileDetails']
 
 def create_thumbnail(legend, event):
 	print(f'Creating thumbnail [{legend}-{event}]')
@@ -192,10 +272,7 @@ def create_thumbnail(legend, event):
 		targetHeight = size[1]
 		width = image.size[0]
 		height = image.size[1]
-		if (targetWidth - width) < (targetHeight - height):
-			ratio = targetWidth/width
-		else:
-			ratio = targetHeight/height
+		ratio = min(targetWidth/width, targetHeight/height)
 		image = image.resize((int(width * ratio), int(height * ratio)))
 		return image
 
@@ -212,59 +289,66 @@ def create_thumbnail(legend, event):
 		return tuple([sum(x) for x in zip(init, pos)])
 
 	# BG
-	canvas = Image.open('pics/bg.png')
+	print('Painting [bg] on canvas')
+	canvas = Image.open(f'{PICS}/bg.png')
 	Cwidth = canvas.size[0]
 	Cheight = canvas.size[1]
 
 	# Logo
-	logo = Image.open('pics/logo.png')
+	print(f'Printing [{GAME}] logo')
+	logo = Image.open(f'{PICS}/logo.png')
 	logo = scale(logo, (Cwidth/2, Cheight))
 	canvas.paste(logo, (Cwidth//2, 0), logo)
 
 	# Legend
-	legend = Image.open(rf'pics/legends/{legend}.png')
-	legend = scale(legend, (Cwidth/2, Cheight))
-	pos = centrePos(legend, (0, 0, Cwidth/2, Cheight))
-	canvas.paste(legend, pos, legend)
+	print(f'Drawing [{legend}]')
+	legend_im = Image.open(rf'{PICS}/legends/{legend}.png')
+	legend_im = scale(legend_im, (Cwidth/2, Cheight))
+	pos = centrePos(legend_im, (0, 0, Cwidth/2, Cheight))
+	canvas.paste(legend_im, pos, legend_im)
 
 	# Event
+	print(f'Filling poster of [{event}]')
 	if 'Ranked 1v1' in event:
 		ratio = (1,2)
 		eventArea = (Cwidth//2, logo.size[1], Cwidth, Cheight)
 		innerCanvas = canvas.crop(eventArea)
 
 		eve = 'Silver'
-		banner = Image.open(rf'pics/events/{eve}.png')
+		print(f'Hoisting banner of [{eve}]')
+		banner = Image.open(rf'{PICS}/events/{eve}.png')
 		bannerWidth = ratio[0] * innerCanvas.size[0]//sum(ratio)
 		banner = scale(banner, (bannerWidth, Cheight-logo.size[1]))
 		pos = centrePos(banner,(0,0,bannerWidth,innerCanvas.size[1]))
 		innerCanvas.paste(banner, pos, banner)
 
-		event = Image.open(rf'pics/events/{event}.png')
+		event_im = Image.open(rf'{PICS}/events/{event}.png')
 		eventWidth = ratio[1] * innerCanvas.size[0]//sum(ratio)
-		event = scale(event, (eventWidth, Cheight-logo.size[1]))
-		pos = centrePos(event, (bannerWidth,0,eventWidth/2,innerCanvas.size[1]))
-		innerCanvas.paste(event, pos, event)
+		event_im = scale(event_im, (eventWidth, Cheight-logo.size[1]))
+		pos = centrePos(event_im, (bannerWidth,0,eventWidth/2,innerCanvas.size[1]))
+		innerCanvas.paste(event_im, pos, event_im)
 
 		canvas.paste(innerCanvas, eventArea, innerCanvas)
 	else:
-		event = Image.open('pics/events/{event}.png')
-		event = scale(event, (Cwidth/2, Cheight-logo.size[1]))
-		pos = centrePos(event, (Cwidth//2, logo.size[1], Cwidth, Cheight))
-		canvas.paste(event, pos, event)
+		event_im = Image.open(rf'{PICS}/events/{event}.png')
+		event_im = scale(event_im, (Cwidth/2, Cheight-logo.size[1]))
+		pos = centrePos(event_im, (Cwidth//2, logo.size[1], Cwidth, Cheight))
+		canvas.paste(event_im, pos, event_im)
 
 	# Save
-	filename = rf'{legend}-{event}.jpg'
-	rgb = canvas.convert('RGB')
-	rgb.save(filename)
+	filename = f'{PICS}/cache/{legend}-{event}.jpg'
+	print(f'Saving [{filename}]')
+	canvas.convert('RGB').save(filename)
 	return filename
 
 yt = YT()
+print('')
 if yt:
 	from pathlib import Path
-	import os
-	path = r'H:\mygits\scripts\beta\yt'
+	import os, sys, re
+	PICS = r'./files/bhpics'
 	GAME = 'Brawlhalla'
+	TIER = 'Silver'
 	DESC = \
 '''Brawlhalla is a free platform fighting game with over 40 million players that supports up to 8 online in a single match with full cross-play. Join casual free-for-alls, queue for ranked matches, or make a custom room with your friends. Frequent updates. 50 unique characters and counting. Come fight for glory in the halls of Valhalla!
 
@@ -281,85 +365,81 @@ How we do Free to Play:
 -Brawlhalla will always be 100% free to play, with no pay-to-win advantages and no in-game purchases keeping you from the action. None of the premium content affects gameplay.
 -The Legend Rotation of eight free to play characters changes every week, and you can earn gold to unlock more Legends by playing any online game mode.'''
 
-	files = []
-	for file in Path(path).glob('*.mkv'):
-		files.append(file)
-
-	for file in files:
-		filename = os.path.basename(file)
-		# ORION-Ranked 1v1 (Silver)
-		try:
-			legend, event = [_.strip() for _ in str(filename)[:-4].split('-')]
-			print(legend, event)
-		except ValueError:
-			print(rf'Name format error {file}, skipping')
-			continue
-		if not os.path.exists(rf'pics/legends/{legend}.png'):
-			print(rf'{legend}.png not found, skipping')
-			continue
-		if not os.path.exists(rf'pics/events/{event}.png'):
-			print(rf'{event}.png not found, skipping')
-			continue
-
-		# Get # from playlist count
-		args={
-			'title':event
-		}
-		num = yt.get_num(args) or 1
-
-		# Title
-		# Brawlhalla - ORION - Ranked 1v1 (Silver) - Gameplay (No commentary) Part #40
-		title = rf"Temp {GAME} - {legend.upper()} - {event} - Gameplay (No commentary) Part #{num}"
-
-		# Description
-		print('Description (r to retry 1, rr or R to start afresh')
-		i = 1
+	# Whtia212jk|00:00 Win,02:53 Loss,03:56 Win
+	if len(sys.argv) == 2:
+		id, times = [_.strip() for _ in sys.argv[1].split('|')]
+	elif len(sys.argv) == 1:
+		id = input('Video id or link:')
+		if 'http' in id:
+			id = id.split("/")[-1]
 		times = []
-		while True:
-			if i > 3: break
-			ip = input(f'(Match:#{i}):')
-			if ip == 'rr' or ip == 'R':
-				i = 1
-				times = []
-			elif ip != 'r':
-				times.append(f'{ip}')
-				i += 1
-			print(f'{times}')
-		description = "\n".join(times) + '\n' + DESC
+		for i in range(3):
+			times.append(input('times:'))
+	else:
+		exit(f'Incorrect parameters')
+	legend, event = yt.get_file(id)['fileName'].split('-')
+	event = event[:-4] # extension
+	if '(' not in event:
+		event = f'{event} ({TIER})'
+	event, TIER = re.match(r"(.*) \((.*)\)",event).groups()
+	legend = legend.title()
+	print(f'[{id}]-[{legend}]-[{event}]')
 
-		# Upload
-		args = {
-			'title':title,
-			'description':description,
-			'tags':['zingamigo','zingamigo gaming'],
-			'categoryId':20, #Gaming
-			'privacyStatus':'private',
-			'file':f'{file}'
-		}
-		# id = 'WHJl7V8p73M' or yt.upload(args)
-		id = yt.upload(args)
+	if not os.path.exists(rf'{PICS}/legends/{legend}.png'):
+		exit(rf'{legend}.png not found')
+	if not os.path.exists(rf'{PICS}/events/{event}.png'):
+		exit(rf'{event}.png not found')
+	print('')
 
-		# Thumbnail
-		thumbnail_file = create_thumbnail(legend,event)
-		args = {
-			'id':id,
-			'file':thumbnail_file
-		}
-		yt.thumbnail(args)
+	# Get # from playlist count
+	args={
+		'title':f'{GAME} {event}',
+		'id':id
+	}
+	num = yt.get_num(args) or 1
+	print('')
 
-		# Setting playlist
-		playlists = [
-			f'{GAME}',
-			f'{GAME} {legend.title()}'
-		]
-		if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in event:
-			pass
-		else:
-			playlists.append(f'{GAME} Brawl of the week')
-		args={
-			'id':id,
-			'playlists':playlists
-		}
-		yt.playlistize(args)
+	# Title
+	# Brawlhalla - ORION - Ranked 1v1 (Silver) - Gameplay (No commentary) Part #40
+	if 'Ranked 1v1' in event:
+		title = rf"{GAME} - {legend.upper()} - {event} ({TIER}) - Gameplay (No commentary) Part #{num}"
+	else:
+		title = rf"{GAME} - {legend.upper()} - {event} - Gameplay (No commentary) Part #{num}"
+	# Description
+	description = "\n".join(times.split(',')) + '\n\n' + DESC
 
-		print('Update Game Title')
+	# Update
+	args = {
+		'id': id,
+		'title':title,
+		'description':description,
+		'tags':['zingamigo','zingamigo gaming'],
+		'categoryId':20, #Gaming
+		'privacyStatus':'public'
+	}
+	yt.update(args)
+	print('')
+
+	# Thumbnail
+	thumbnail_file = create_thumbnail(legend,event)
+	args = {
+		'id':id,
+		'file':thumbnail_file
+	}
+	yt.thumbnail(args)
+	print('')
+
+	# Setting playlist
+	playlists = [
+		f'{GAME}',
+		f'{GAME} {legend.title()}'
+	]
+	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in event:
+		playlists.append(f'{GAME} {event}')
+	else:
+		playlists.append(f'{GAME} Brawl of the week')
+	args={
+		'id':id,
+		'playlists':playlists
+	}
+	yt.playlistize(args)
