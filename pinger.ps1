@@ -60,11 +60,11 @@ param (
 )
 
 Write-Host ""
-Write-Host "Exiting Previous ... " -NoNewline
-stop-job -name pinger -ea SilentlyContinue
-remove-job -name pinger -ea SilentlyContinue
-Unregister-Event DataAdded -ea SilentlyContinue
-Write-Host "Done"
+#Write-Host "Exiting Previous ... " -NoNewline
+#stop-job -name pinger -ea SilentlyContinue
+#remove-job -name pinger -ea SilentlyContinue
+#Unregister-Event DataAdded -ea SilentlyContinue
+#Write-Host "Done"
 
 
 if($help){

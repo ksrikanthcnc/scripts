@@ -1,3 +1,12 @@
+def show_exception_and_exit(exc_type, exc_value, tb):
+	import traceback
+	traceback.print_exception(exc_type, exc_value, tb)
+	input("Press key to exit.")
+	sys.exit(-1)
+
+import sys
+sys.excepthook = show_exception_and_exit
+
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
 from googleapiclient.discovery import build
@@ -368,10 +377,17 @@ How we do Free to Play:
 	# Whtia212jk|00:00 Win,02:53 Loss,03:56 Win
 	if len(sys.argv) == 2:
 		id, times = [_.strip() for _ in sys.argv[1].split('|')]
+		times = times.split(',')
 	elif len(sys.argv) == 1:
 		id = input('Video id or link:')
-		if 'http' in id:
-			id = id.split("/")[-1]
+		if 'https' in id:
+			linkPrefixes=['https://youtu.be/', 'https://www.youtube.com/watch?v=']
+			for prefix in linkPrefixes:
+				if prefix in id:
+					id = id.replace(prefix,'')
+					break
+			else:
+				exit(f'Expected [Video id] or links[{linkPrefixes}]')
 		times = []
 		for i in range(3):
 			times.append(input('times:'))
@@ -393,20 +409,30 @@ How we do Free to Play:
 
 	# Get # from playlist count
 	args={
+		'title':f'{GAME}',
+		'id':id
+	}
+	GAMEnum = yt.get_num(args) or 1
+	args={
+		'title':f'{GAME} {legend}',
+		'id':id
+	}
+	Legendnum = yt.get_num(args) or 1
+	args={
 		'title':f'{GAME} {event}',
 		'id':id
 	}
-	num = yt.get_num(args) or 1
+	Eventnum = yt.get_num(args) or 1
 	print('')
 
 	# Title
 	# Brawlhalla - ORION - Ranked 1v1 (Silver) - Gameplay (No commentary) Part #40
 	if 'Ranked 1v1' in event:
-		title = rf"{GAME} - {legend.upper()} - {event} ({TIER}) - Gameplay (No commentary) Part #{num}"
+		title = rf"{GAME} #{GAMEnum} - {legend.upper()} #{Legendnum} - {event} ({TIER}) #{Eventnum} - Gameplay (No commentary) Part #{Eventnum}"
 	else:
-		title = rf"{GAME} - {legend.upper()} - {event} - Gameplay (No commentary) Part #{num}"
+		title = rf"{GAME} #{GAMEnum} - {legend.upper()} #{Legendnum} - {event} #{Eventnum} - Gameplay (No commentary) Part #{Eventnum}"
 	# Description
-	description = "\n".join(times.split(',')) + '\n\n' + DESC
+	description = "\n".join(times) + '\n\n' + DESC
 
 	# Update
 	args = {
@@ -443,3 +469,5 @@ How we do Free to Play:
 		'playlists':playlists
 	}
 	yt.playlistize(args)
+
+input('Done, Enter to exit')

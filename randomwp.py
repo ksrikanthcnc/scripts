@@ -321,7 +321,11 @@ SHPATH = r'C:\Users\Kalyanam\Pictures\WPs'
 if not os.path.exists(SHPATH):
     os.makedirs(SHPATH)
 
-GridDim = [3, 3]
+import sys
+if len(sys.argv) > 1:
+	GridDim = [int(_) for _ in sys.argv[1].split(',')]
+else:
+	GridDim = [3, 3]
 SIZE = GridDim[0] * GridDim[1]
 PAD = 20
 WPlist = []

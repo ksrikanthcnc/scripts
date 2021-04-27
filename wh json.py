@@ -14,23 +14,28 @@ else:
 	rootdirs = [
 	r'C:\Users\Kalyanam\Pictures\latest',
 	r'C:\Users\Kalyanam\Pictures\Wallpapers',
-	# r'C:\Users\Kalyanam\Pictures\latest\Android WallHaven',
-	# r'C:\Users\Kalyanam\Pictures\latest\Ubuntu'
+	r'C:\Users\Kalyanam\Pictures\latest\Android WallHaven'
 	]
 
-paths = []
+paths = {}
 for rootdir in rootdirs:
     # rglob for recursive
 	for path in Path(rootdir).rglob('wallhaven*.*'):
-		paths.append(path)
-paths.sort()
+		file = re.search('wallhaven-(.*)\.(.*)', str(path))
+		id = file.group(1)
+		paths[id] = path
 
 ids = []
 with open('jsons.txt','r+') as file:
 	for line in file.readlines():
-		ids.append(json.loads(line[:-1])['id'])
+		id = json.loads(line[:-1])['id']
+		ids.append(id)
+		if id in paths:
+			del(paths[id])
+paths = list(paths.values())
+paths.sort()
 
-apif = open('whapi.txt')
+apif = open(r'.\creds\whapi.txt')
 api=apif.readline()
 wallhaven = Wallhaven(api)
 wallhaven.REQUEST_TIMEOUT = 0
