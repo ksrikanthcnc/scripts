@@ -34,9 +34,7 @@ if len(sys.argv) > 1:
 	print('Using paths from args passed')
 else:
 	rootdirs = [
-		# r'H:\mygits\scripts\beta',
-		# r'C:\Users\Kalyanam\Pictures\latest',
-		r'C:\Users\Kalyanam\Pictures\Wallpapers'
+		r'E:\Drive\Wallpapers'
 	]
 
 paths = {}

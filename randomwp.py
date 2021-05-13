@@ -42,28 +42,29 @@ def GetFileList():
 def UpdateWithHist(filenames):
     global WPIndex
     global WPlist
-    fHist = open(HISTFILE, 'r')
-    for line in fHist.read().splitlines():
-        if os.path.exists(line):
-            file = line
-            try:
-                filenames.remove(file)
-                WPlist.append(file)
-                WPIndex += 1
-            except ValueError:
-                Log('{0} in Hist not found in current search area'.format(file))
-        elif '--------------' in line:
-            filenames = GetFileList()
-            WPlist = []
-            WPIndex = -1
-    if WPIndex > 0: 
-        WPIndex += 1
-        WPIndex -= SIZE
-    Log('History size:', len(WPlist))
-    if len(WPlist) % SIZE != 0:
-        for _ in range(SIZE - len(WPlist) % SIZE):
-            WPlist.insert(0, BLACKPATH)
+    if os.path.exists(HISTFILE):
+        fHist = open(HISTFILE, 'r')
+        for line in fHist.read().splitlines():
+            if os.path.exists(line):
+                file = line
+                try:
+                    filenames.remove(file)
+                    WPlist.append(file)
+                    WPIndex += 1
+                except ValueError:
+                    Log('{0} in Hist not found in current search area'.format(file))
+            elif '--------------' in line:
+                filenames = GetFileList()
+                WPlist = []
+                WPIndex = -1
+        if WPIndex > 0: 
             WPIndex += 1
+            WPIndex -= SIZE
+        Log('History size:', len(WPlist))
+        if len(WPlist) % SIZE != 0:
+            for _ in range(SIZE - len(WPlist) % SIZE):
+                WPlist.insert(0, BLACKPATH)
+                WPIndex += 1
     return filenames
 
 def LogWP(filepaths):
@@ -311,13 +312,14 @@ def ExitFromHotkeys():
 
 PICFOLDER = [
     # r'C:\Users\Kalyanam\Pictures\latest\\',
-    r'C:\Users\Kalyanam\Pictures\Wallpapers\\'
+    r'E:\Drive\Wallpapers\\'
     ]
-HISTFILE = r'C:\Users\Kalyanam\Pictures\WallpaperHistory.txt'
-LOGFILE = r'C:\Users\Kalyanam\Pictures\WallpaperLog.txt'
-WPPATH = r'C:\Users\Kalyanam\Pictures\Wallpaper.jpg'
-BLACKPATH = r'C:\Users\Kalyanam\Pictures\black.jpg'
-SHPATH = r'C:\Users\Kalyanam\Pictures\WPs'
+WORKROOT = r'E:\Pics'
+HISTFILE = rf'{WORKROOT}\WallpaperHistory.txt'
+LOGFILE = rf'{WORKROOT}\WallpaperLog.txt'
+WPPATH = rf'{WORKROOT}\Wallpaper.jpg'
+BLACKPATH = rf'{WORKROOT}\black.jpg'
+SHPATH = rf'{WORKROOT}\WPs'
 if not os.path.exists(SHPATH):
     os.makedirs(SHPATH)
 
@@ -358,7 +360,7 @@ bindings = [
 t1 = threading.Thread(target=WPChanger)
 t1.start()
 
-systray = SysTrayIcon(r'C:\Users\Kalyanam\Pictures\wallpaper.ico',
+systray = SysTrayIcon(r'.\wallpaper.ico',
                       hover_text="Wallpaper Setter", menu_options=menu_options, on_quit=SysTrayQuit)
 systray.start()
 

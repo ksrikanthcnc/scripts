@@ -12,9 +12,8 @@ if len(sys.argv) > 1:
 	print('Using paths from args passed')
 else:
 	rootdirs = [
-	r'C:\Users\Kalyanam\Pictures\latest',
-	r'C:\Users\Kalyanam\Pictures\Wallpapers',
-	r'C:\Users\Kalyanam\Pictures\latest\Android WallHaven'
+	r'E:\Drive\Wallpapers\latest'
+	# r'E:\Drive\Wallpapers\latest'
 	]
 
 paths = {}
