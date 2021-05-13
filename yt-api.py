@@ -15,6 +15,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 import http.client,httplib2
 import sys
 
+def Exit(msg):
+	print(msg)
+	input('Enter to exit')
+	exit()
 class YT:
 	CLIENT_SECRETS_FILE = './creds/client_secret.json'
 	# CREDENTIALS = 'credentials.json'
@@ -57,8 +61,7 @@ class YT:
 			print(e)
 			self.yt = None
 		if len(sys.argv) > 1 and sys.argv[1] == 'link':
-			print('Creds fetched')
-			exit()
+			Exit('Creds fetched, rerun normally')
 	
 	def upload(self,args):
 		# Not used in this script
@@ -86,7 +89,7 @@ class YT:
 							print(f'Uploaded Video id [{id}]')
 							return id
 						else:
-							exit(f'Upload failed:{response}')
+							Exit(f'Upload failed:{response}')
 				except HttpError as e:
 					if e.resp.status in RETRIABLE_STATUS_CODES:
 						error = f'A retriable HTTP error {e.resp.status} occurred:\n{e.content}'
@@ -99,7 +102,7 @@ class YT:
 				print(error)
 				retry += 1
 				if retry > MAX_RETRIES:
-					exit('No longer attempting to retry.')
+					Exit('No longer attempting to retry.')
 				max_sleep = 2 ** retry
 				import random, time
 				sleep_seconds = random.random() * max_sleep
@@ -139,7 +142,7 @@ class YT:
 		).execute()
 
 		if not response['items']:
-			exit(f'[{args["id"]}] not found (Is it uploaded?)')
+			Exit(f'[{args["id"]}] not found (Is it uploaded?)')
 		snippet = response['items'][0]['snippet']
 		status = response['items'][0]['status']
 
@@ -229,7 +232,7 @@ class YT:
 				else:
 					print(f'Already in playlist')
 			else:
-				exit("Error while adding to playlist")
+				Exit("Error while adding to playlist")
 
 	def get_num(self,args):
 		def _get_playlist(title):
@@ -283,17 +286,17 @@ class YT:
 						del_ids.append(item['contentDetails']['videoId'])
 					if args['id'] == item['contentDetails']['videoId']:
 						num = count
-						print(f'Existing [{num}]')
+						print(f'Existing [#{num}]')
 				request = self.yt.playlistItems().list_next(request, results)
 			if not num:
 				num = count + 1
-				print(f'Next [{num}]')
+				print(f'Next [#{num}]')
 			if del_ids != []:
 				print(f'\tDeleted ids in playlist({len(del_ids)}) {[",".join(del_ids)]}')
 			return num
 
 	def clean_playlist(self,args):
-		exit('BETA, use at own risk')
+		Exit('BETA, use at own risk')
 		def _get_sorted_playlist(self,args):
 			print(f'Retrieving playlist [{args["id"]}] content')
 			request = self.yt.playlistItems().list(
@@ -354,7 +357,7 @@ class YT:
 			id=id,
 		).execute()
 		if len(request['items']) == 0:
-			exit(f"[{id}] not found (Deleted?)")
+			Exit(f"[{id}] not found (Deleted?)")
 		elif len(request['items']) == 1:
 			print(f"[{request['items'][0]['snippet']['title']}]")
 			return request['items'][0]
@@ -459,29 +462,36 @@ How we do Free to Play:
 					id = id.replace(prefix,'')
 					break
 			else:
-				exit(f'Expected [Video id] or links[{linkPrefixes}]')
+				Exit(f'Expected [Video id] or links[{linkPrefixes}]')
 		times = []
 		for i in range(3):
 			times.append(input('times:'))
 	else:
-		exit(f'Incorrect parameters')
+		Exit(f'Incorrect parameters')
 	snippet_title = yt.get_video_details(id)['snippet']['title']
 	existing = re.match(r'Brawlhalla (?:#\d+ )?- ([^-#]+) (?:#\d+ )?- ([^-#]+) (?:#\d+ )?- Gameplay \(No commentary\) (?:#\d+ )?',snippet_title)
-	new = re.match(r'(\w+)-(.*)',snippet_title)
+	new = re.match(r'([^-]+)-(.*)',snippet_title)
 	matched = existing or new
 	legend, event = matched.groups()
 	legend = legend.title()
 	print(f'[{id}]-[{legend}]-[{event}]')
 
 	if not os.path.exists(rf'{PICS}/legends/{legend}.png'):
-		exit(rf'{legend}.png not found')
+		Exit(rf'{legend}.png not found')
 	if not os.path.exists(rf'{PICS}/events/{event}.png'):
-		exit(rf'{event}.png not found')
+		Exit(rf'{event}.png not found')
 	print('')
 
 	# Get # from playlist count
 	nums = {}
-	for i,playlistname in enumerate([f'{GAME}',f'{GAME} {legend}',f'{GAME} {event}']):
+	playlists = [f'{GAME}',f'{GAME} {legend}',f'{GAME} {event}']
+	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in event:
+		pass
+		# playlists.append(f'{GAME} {event}')
+	else:
+		playlists.append(f'{GAME} Brawl of the week')
+	for i,playlistname in enumerate(playlists):
+		print(id,playlistname)
 		args={
 			'title':playlistname,
 			'pos':i, #Not generic
@@ -491,7 +501,11 @@ How we do Free to Play:
 	print('')
 	# Title
 	# Brawlhalla # 49 - ORION #5 - Ranked 1v1 (Silver) #4 - Gameplay (No commentary) Part #40
-	title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} {event}']}"
+#	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in event:
+#		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} {event}']}"
+#	else:
+#		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} Brawl of the week']}"
+	title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[list(nums.keys())[-1]]}"
 	# Description
 	description = "\n".join(times) + '\n\n' + DESC
 
