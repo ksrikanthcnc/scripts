@@ -12,7 +12,7 @@ if len(sys.argv) > 1:
 	print('Using paths from args passed')
 else:
 	rootdirs = [
-	r'E:\Drive\Wallpapers\latest'
+	r'E:\Drive\Wallpapers'
 	# r'E:\Drive\Wallpapers\latest'
 	]
 

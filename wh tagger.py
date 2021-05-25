@@ -7,7 +7,7 @@ import re
 
 class ExifTool(object):
     sentinel = "{ready}\r\n"
-    def __init__(self, executable=r'G:\My Files\Utiities\exiftool.exe'):
+    def __init__(self, executable=r'D:\My\Progs\exiftool.exe'):
         self.executable = executable
     def __enter__(self):
         self.process = subprocess.Popen(
@@ -52,6 +52,7 @@ with open('jsons.txt','r+') as file:
 count = 0
 with ExifTool() as exif:
 	for i,id in enumerate(paths):
+		print(i,end='\r')
 		if id not in data:
 			print(id,'Run wh json.py and update jsons.txt')
 			continue

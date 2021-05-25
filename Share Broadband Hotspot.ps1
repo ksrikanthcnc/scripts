@@ -2,7 +2,7 @@ Write-Output "...Connecting to broadband"
 rasdial "Broadband Connection" "sudhakar" "123456"
 
 Write-Output "...Starting netsh hotspot"
-netsh wlan set hostednetwork mode=allow ssid=srika-lenovo key=passcode
+netsh wlan set hostednetwork mode=allow ssid=Legion key=passcode
 netsh wlan start hostednetwork
 
 Write-Output "...Sharing internet"

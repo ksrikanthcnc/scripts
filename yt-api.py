@@ -41,7 +41,13 @@ class YT:
 			if cred and cred.expired and cred.refresh_token:
 				from google.auth.transport.requests import Request
 				print('Refreshing cred')
-				cred.refresh(Request())
+				try:
+					cred.refresh(Request())
+				except google.auth.exceptions.RefreshError:
+					print(f'Got [google.auth.exceptions.RefreshError], so removing {self.PICKLE}')
+					os.remove(self.PICKLE)
+					input('Rerun, enter to exit this session')
+					exit()
 			else:
 				print('Opening Web-Browser to get OAuth cred/token')
 				flow = InstalledAppFlow.from_client_secrets_file(self.CLIENT_SECRETS_FILE, self.SCOPES)
@@ -134,8 +140,11 @@ class YT:
 	def update(self, args):
 		print(rf'Updating metadata')
 		print(args['title'])
-		for line in args['description'].split('\n')[:3]:
-			print(line)
+		for line in args['description'].split('\n'):
+			if ':' in line:
+				print(line)
+			else:
+				break			
 		response = self.yt.videos().list(
 			id=args['id'],
 			part='snippet,status'
@@ -250,7 +259,7 @@ class YT:
 		if args['pos'] != 2:
 			print(f'# in playlist [{args["title"]}]:',end='',flush=True)
 		else: # event
-			if args['title'] in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in args['title']:
+			if any([args['title'] in item for item in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1']]) or 'Ranked 1v1' in args['title']:
 				print(f'# in playlist [{args["title"]}]:',end='',flush=True)
 			else:
 				botw = args["title"].replace(f'{GAME} ','')
@@ -277,7 +286,7 @@ class YT:
 						if args['pos'] != 2:
 							count += 1
 						else:
-							if args['title'] in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in args['title']:
+							if any([args['title'] in item for item in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1']]) or 'Ranked 1v1' in args['title']:
 								count += 1
 							else:
 								if botw in item['snippet']['title']:
@@ -464,8 +473,11 @@ How we do Free to Play:
 			else:
 				Exit(f'Expected [Video id] or links[{linkPrefixes}]')
 		times = []
-		for i in range(3):
-			times.append(input('times:'))
+		while True:
+			ip = input('times:')
+			if ip == '':
+				break
+			times.append(ip)
 	else:
 		Exit(f'Incorrect parameters')
 	snippet_title = yt.get_video_details(id)['snippet']['title']
