@@ -48,7 +48,7 @@ param (
 #'.'s and ':'s (Verbose)
     [ValidateSet(".",":",$false,$true)]$Verbose = $false,
 #Short verbose char
-    [string]$VerbChar = ":",
+    [string]$VerbChar = "#",
 #Beep sound
     [Switch]$Beep = $false,
 #Beep duration

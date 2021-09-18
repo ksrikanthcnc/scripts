@@ -25,7 +25,7 @@ for rootdir in rootdirs:
 		paths[id] = path
 
 ids = []
-with open('jsons.txt','r+') as file:
+with open('files\jsons.txt','r+') as file:
 	for line in file.readlines():
 		id = json.loads(line[:-1])['id']
 		ids.append(id)
@@ -38,7 +38,7 @@ apif = open(r'.\creds\whapi.txt')
 api=apif.readline()
 wallhaven = Wallhaven(api)
 wallhaven.REQUEST_TIMEOUT = 0
-jsonsfile = open('jsons.txt','a+')
+jsonsfile = open('files\jsons.txt','a+')
 
 for i, path in enumerate(paths):
 	print(len(paths)-i, end='--',flush = True)

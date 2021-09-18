@@ -4,7 +4,7 @@ import subprocess
 import time
 
 def fdur(filename):
-    result = subprocess.run([r'G:\My Files\Utiities\ffmpeg-n4.3.1-20-g8a2acdc6da-win64-gpl-4.3\bin\ffprobe.exe', "-v", "error", "-show_entries",
+    result = subprocess.run([r'D:\MyProgs\ffmpeg-n4.3.1-20-g8a2acdc6da-win64-gpl-4.3\bin\ffprobe.exe', "-v", "error", "-show_entries",
                              "format=duration", "-of",
                              "default=noprint_wrappers=1:nokey=1", "-sexagesimal", filename],
         stdout=subprocess.PIPE,
@@ -13,11 +13,7 @@ def fdur(filename):
 
 try:
     paths = []
-    paths.append("G:\DownLoads\Video\Movies\\")
-    paths.append("G:\DownLoads\Video\Fresh\\")
-    paths.append("F:\Movies\Eng\\")
-    paths.append("F:\Movies\Eng\\nosubs\\")
-    # paths.append("F:\Movies\Eng")
+    paths.append("E:\Movies\English\\")
 
     movls = []
     for path in paths:
@@ -41,7 +37,7 @@ try:
             watchlist.append(mov)
             print(str(len(watchlist))+'.',end=' ')
             print('['+str(fdur(mov))+']',end=' ')
-            print(os.path.basename(mov),'\t\t\t',os.path.dirname(mov),end='')
+            print(os.path.basename(mov),end='')
         else:
             print('All movies listed, make up your mind!!!', end='')
         play = input()
@@ -59,7 +55,7 @@ try:
     print('playing', mov)
     e = subprocess.Popen(r'explorer /select,'+mov)
     time.sleep(1)
-    v = subprocess.Popen(["C:/Program Files (x86)/VideoLAN/VLC/vlc.exe", mov])
+    v = subprocess.Popen([r"D:\Program Files\VideoLAN\VLC\vlc.exe", mov])
 
 except:
     import sys

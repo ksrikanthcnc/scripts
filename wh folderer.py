@@ -28,7 +28,7 @@ for rootdir in rootdirs:
 paths.sort()
 
 jsons = {}
-with open('jsons.txt','r+') as file:
+with open('files\jsons.txt','r+') as file:
 	for line in file.readlines():
 		jsob = json.loads(line[:-1])
 		jsons[jsob['id']] = jsob

@@ -7,7 +7,7 @@ import re
 
 class ExifTool(object):
     sentinel = "{ready}\r\n"
-    def __init__(self, executable=r'D:\My\Progs\exiftool.exe'):
+    def __init__(self, executable=r'D:\MyProgs\exiftool.exe'):
         self.executable = executable
     def __enter__(self):
         self.process = subprocess.Popen(
@@ -44,7 +44,7 @@ for rootdir in rootdirs:
 		paths[id] = path
 
 data = {}
-with open('jsons.txt','r+') as file:
+with open('files\jsons.txt','r+') as file:
 	for line in file.readlines():
 		jsob = json.loads(line[:-1])
 		data[jsob['id']]=jsob

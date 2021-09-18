@@ -46,8 +46,9 @@ class YT:
 				except google.auth.exceptions.RefreshError:
 					print(f'Got [google.auth.exceptions.RefreshError], so removing {self.PICKLE}')
 					os.remove(self.PICKLE)
-					input('Rerun, enter to exit this session')
-					exit()
+					input('Rerun session (enter to rereun)')
+					os.execl(sys.executable, 'python', __file__, *sys.argv[1:])
+					#exit()
 			else:
 				print('Opening Web-Browser to get OAuth cred/token')
 				flow = InstalledAppFlow.from_client_secrets_file(self.CLIENT_SECRETS_FILE, self.SCOPES)
@@ -259,7 +260,7 @@ class YT:
 		if args['pos'] != 2:
 			print(f'# in playlist [{args["title"]}]:',end='',flush=True)
 		else: # event
-			if any([args['title'] in item for item in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1']]) or 'Ranked 1v1' in args['title']:
+			if any([True if item in args['title'] else False for item in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']]) or 'Ranked 1v1' in args['title']:
 				print(f'# in playlist [{args["title"]}]:',end='',flush=True)
 			else:
 				botw = args["title"].replace(f'{GAME} ','')
@@ -286,7 +287,7 @@ class YT:
 						if args['pos'] != 2:
 							count += 1
 						else:
-							if any([args['title'] in item for item in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1']]) or 'Ranked 1v1' in args['title']:
+							if any([True if item in args['title'] else False for item in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']]) or 'Ranked 1v1' in args['title']:
 								count += 1
 							else:
 								if botw in item['snippet']['title']:
@@ -443,7 +444,14 @@ if yt:
 	PICS = r'./files/bhpics'
 	GAME = 'Brawlhalla'
 	DESC = \
-'''Brawlhalla is a free platform fighting game with over 40 million players that supports up to 8 online in a single match with full cross-play. Join casual free-for-alls, queue for ranked matches, or make a custom room with your friends. Frequent updates. 50 unique characters and counting. Come fight for glory in the halls of Valhalla!
+'''
+Quicklinks:
+-Website: https://www.brawlhalla.com/
+-Steam link: https://store.steampowered.com/app/291550/Brawlhalla/
+-Recording software: https://obsproject.com/
+-Plugin for keyboard overlay: https://github.com/univrsal/input-overlay/releases/
+
+Brawlhalla is a free platform fighting game with over 40 million players that supports up to 8 online in a single match with full cross-play. Join casual free-for-alls, queue for ranked matches, or make a custom room with your friends. Frequent updates. 50 unique characters and counting. Come fight for glory in the halls of Valhalla!
 
 Features
 - Online Ranked 1v1 & 2v2 - Climb the ranked ladder from Tin up to Platinum and beyond! Fight enemies solo or team up with your friends. Matches you against players near your skill level.
@@ -481,25 +489,27 @@ How we do Free to Play:
 	else:
 		Exit(f'Incorrect parameters')
 	snippet_title = yt.get_video_details(id)['snippet']['title']
-	existing = re.match(r'Brawlhalla (?:#\d+ )?- ([^-#]+) (?:#\d+ )?- ([^-#]+) (?:#\d+ )?- Gameplay \(No commentary\) (?:#\d+ )?',snippet_title)
+	existing = re.match(r'Brawlhalla (?:#\d+ )?- ([^-#]+) (?:#\d+ )?- ([^-#]+) (?:#\d+ )?(?:\(#\d+\) )?- Gameplay \(No commentary\) (?:#\d+ )?',snippet_title)
 	new = re.match(r'([^-]+)-(.*)',snippet_title)
 	matched = existing or new
 	legend, event = matched.groups()
 	legend = legend.title()
 	print(f'[{id}]-[{legend}]-[{event}]')
 
-	if not os.path.exists(rf'{PICS}/legends/{legend}.png'):
-		Exit(rf'{legend}.png not found')
-	if not os.path.exists(rf'{PICS}/events/{event}.png'):
-		Exit(rf'{event}.png not found')
+	while not os.path.exists(rf'{PICS}/legends/{legend}.png'):
+		input(rf'Legend:{legend}.png not found. Add and enter to continue')
+	while not os.path.exists(rf'{PICS}/events/{event}.png'):
+		input(rf'Event:{event}.png not found. Add and enter to continue')
 	print('')
 
 	# Get # from playlist count
 	nums = {}
 	playlists = [f'{GAME}',f'{GAME} {legend}',f'{GAME} {event}']
-	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in event:
+	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']:
 		pass
 		# playlists.append(f'{GAME} {event}')
+	elif 'Ranked 1v1' in event:
+		playlists.append(f'{GAME} Ranked 1v1')
 	else:
 		playlists.append(f'{GAME} Brawl of the week')
 	for i,playlistname in enumerate(playlists):
@@ -513,11 +523,15 @@ How we do Free to Play:
 	print('')
 	# Title
 	# Brawlhalla # 49 - ORION #5 - Ranked 1v1 (Silver) #4 - Gameplay (No commentary) Part #40
-#	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in event:
-#		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} {event}']}"
-#	else:
-#		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} Brawl of the week']}"
-	title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[list(nums.keys())[-1]]}"
+	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']:
+		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} {event}']}"
+	elif 'Ranked 1v1' in event:
+		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} (#{nums[f'{GAME} Ranked 1v1']}) - Gameplay (No commentary) Part #{nums[f'{GAME} {event}']}"
+	else:
+		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} Brawl of the week']}"
+	# title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[list(nums.keys())[-1]]}"
+	if existing is not None: # Beta
+		title = snippet_title
 	# Description
 	description = "\n".join(times) + '\n\n' + DESC
 
@@ -547,8 +561,11 @@ How we do Free to Play:
 		f'{GAME}',
 		f'{GAME} {legend.title()}'
 	]
-	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1'] or 'Ranked 1v1' in event:
+	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']:
 		playlists.append(f'{GAME} {event}')
+	elif 'Ranked 1v1' in event:
+		playlists.append(f'{GAME} {event}')
+		playlists.append(f'{GAME} Ranked 1v1')
 	else:
 		playlists.append(f'{GAME} Brawl of the week')
 	args={

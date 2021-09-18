@@ -24,16 +24,21 @@ $tetheringManager = [Windows.Networking.NetworkOperators.NetworkOperatorTetherin
 # Check whether Mobile Hotspot is enabled
 $state = $tetheringManager.TetheringOperationalState
 Write-Host $state
-Write-Host 'Toggling'
+Write-Host 'Toggle?y/n'
+$option = Read-Host
 
-if ($state -eq 'Off'){
-# Start Mobile Hotspot
-    Await ($tetheringManager.StartTetheringAsync()) ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult])
-}
-else{
-# Stop Mobile Hotspot
-    Await ($tetheringManager.StopTetheringAsync()) ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult])
+if ($option -eq 'y'){
+    if ($state -eq 'Off'){
+    # Start Mobile Hotspot
+        Write-Host 'Starting'
+        Await ($tetheringManager.StartTetheringAsync()) ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult])
+    }
+    else{
+    # Stop Mobile Hotspot
+        Write-Host 'Stopping'
+        Await ($tetheringManager.StopTetheringAsync()) ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult])
+    }
 }
 
-Write-Host -NoNewLine 'Done...Press any key to continue...';
-$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+# Write-Host -NoNewLine 'Done...Press any key to continue...';
+# $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
