@@ -1,6 +1,6 @@
 import sys
 import wallhaven as wh
-from wallhaven import Wallhaven
+from wallhaven.api.wallhaven import Wallhaven
 import re
 import json
 import os
@@ -25,7 +25,7 @@ for rootdir in rootdirs:
 		paths[id] = path
 
 ids = []
-with open('files\jsons.txt','r+') as file:
+with open(r'..\files\jsons.txt','r+') as file:
 	for line in file.readlines():
 		id = json.loads(line[:-1])['id']
 		ids.append(id)
@@ -34,11 +34,11 @@ with open('files\jsons.txt','r+') as file:
 paths = list(paths.values())
 paths.sort()
 
-apif = open(r'.\creds\whapi.txt')
+apif = open(r'..\.\creds\whapi.txt')
 api=apif.readline()
 wallhaven = Wallhaven(api)
 wallhaven.REQUEST_TIMEOUT = 0
-jsonsfile = open('files\jsons.txt','a+')
+jsonsfile = open(r'..\files\jsons.txt','a+')
 
 for i, path in enumerate(paths):
 	print(len(paths)-i, end='--',flush = True)
@@ -51,15 +51,17 @@ for i, path in enumerate(paths):
 		print(str(path))
 		exit()
 	limit = 0
+	print(path,end='--')
 	while True:
 		try:
 			if id in ids:
 				print(id, 'Already fetched')
 				break
-			data = wallhaven.get_wallpaper_info(wallpaper_id=id)
+			wh_data = wallhaven.get_wallpaper(wallpaper_id=id)
 			if limit > 0:
 				print('\t',limit,end=' ')
-			print(data['id'])
+			print(wh_data.id)
+			data = wh_data.as_dict()
 			data=json.dumps(data)+'\n'
 			jsonsfile.write(data)
 			break
@@ -68,16 +70,18 @@ for i, path in enumerate(paths):
 			jsonsfile.write(data+'\n')
 			print(rf'<{id}> Invalid ID, Skipping')
 			break
-		except wh.exceptions.RequestLimitError:
+		except wh.exceptions.TooManyRequestsError:
 			limit += 1
 			if limit == 1:
 				print('... Request Limit Error, retrying')
 			if limit > 10:
 				print("Request Limit Error too many times(EXITING)",limit)
+				input('enter to exit')
 				exit()
 			time.sleep(limit)
 		except Exception as e:
 			print("Exception [{0}]:[{1!r}]".format(type(e).__name__,e.args))
+			input('enter to exit')
 			exit()
 	jsonsfile.flush()
-print('done')
+input('done-enter to exit')
