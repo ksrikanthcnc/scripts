@@ -30,16 +30,15 @@ try:
     print('[q] to quit')
     print('[<Enter a number>] to play that movie')
     print('')
-    while not run:
+    while True:
         if len(movls) != 0:
             mov = str(rd.choice(movls))
             movls.remove(mov)
             watchlist.append(mov)
-            print(str(len(watchlist))+'.',end=' ')
-            print('['+str(fdur(mov))+']',end=' ')
-            print(os.path.basename(mov),end='')
+            print(f'{str(len(watchlist))}. [{str(fdur(mov))}] {os.path.basename(mov)}',end='')
         else:
             print('All movies listed, make up your mind!!!', end='')
+        run = False
         play = input()
         if play == 'y':
             run = True
@@ -47,15 +46,16 @@ try:
             exit()
         elif play.isnumeric():
             play = int(play)
-            if play < len(watchlist):
+            if play <= len(watchlist):
                 mov = watchlist[play-1]
                 run = True
             else:
                 print('Enter number in bounds')
-    print('playing', mov)
-    e = subprocess.Popen(r'explorer /select,'+mov)
-    time.sleep(1)
-    v = subprocess.Popen([r"D:\Program Files\VideoLAN\VLC\vlc.exe", mov])
+        if run:
+            print('\tplaying', mov)
+            e = subprocess.Popen(r'explorer /select,'+mov)
+            # time.sleep(1)
+            v = subprocess.Popen([r"D:\Program Files\VideoLAN\VLC\vlc.exe", mov])
 
 except:
     import sys
