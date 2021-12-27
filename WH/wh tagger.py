@@ -33,9 +33,11 @@ if len(sys.argv) > 1:
 	rootdirs = sys.argv[1:]
 	print('Using paths from args passed')
 else:
+	path = input('Enter path')
 	rootdirs = [
-		r'E:\Drive\Wallpapers'
+#		r'E:\Drive\Wallpapers'
 	]
+	rootdirs.append(path)
 
 paths = {}
 for rootdir in rootdirs:
@@ -44,21 +46,26 @@ for rootdir in rootdirs:
 		paths[id] = path
 
 data = {}
-with open('files\jsons.txt','r+') as file:
+with open(r'..\files\jsons.txt','r+') as file:
 	for line in file.readlines():
 		jsob = json.loads(line[:-1])
 		data[jsob['id']]=jsob
 
 count = 0
+notag = open('notag.txt','w')
 with ExifTool() as exif:
 	for i,id in enumerate(paths):
-		print(i,end='\r')
+		print(len(paths)-i,paths[id],"                                                          ",end='\r')
 		if id not in data:
 			print(id,'Run wh json.py and update jsons.txt')
 			continue
 		if 'invalid' in data[id]:
 			continue
-		subject = exif.execute('-Subject', str(paths[id]))
+		if data[id]['tags'] == []:
+			print(id,'No Tag')
+			notag.write(f'{data[id]}\n')
+			continue
+		subject = exif.execute('-Subject\n-m', str(paths[id]))
 		if subject == '':
 			print(i+1, paths[id], flush = True, end = '--')
 			tags = data[id]['tags']
@@ -68,8 +75,10 @@ with ExifTool() as exif:
 				args.append('-Subject='+tag['name'])
 				finaltag += tag['name']+','
 			print(finaltag,end='')
-			args.append('-overwrite_original')
+#			args.append('-overwrite_original')
+			args.append('-overwrite_original_in_place')
 			args.append('-P')
+			args.append('-m')
 			args.append(str(paths[id]))
 			tagstr = ""
 			for arg in args:
@@ -78,4 +87,4 @@ with ExifTool() as exif:
 			count+=1
 			print('')
 print(count)
-print('done')
+input('done;enter to exit')
