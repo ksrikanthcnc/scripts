@@ -284,12 +284,24 @@ def ViewPrevWP(sysTrayIcon=None):
         else:
             Log('All wallpapers deleted in this set')
 
+def IsLocked():
+    process_name = 'LogonUI.exe'
+    callall = 'TASKLIST'
+    # outputall = subprocess.check_output(callall)
+    outputall = subprocess.run(callall, capture_output=True, creationflags=0x08000000)
+    outputstringall = str(outputall)
+    if process_name in outputstringall:
+        Log("Locked, so skipping")
+        return True
+    else:
+        return False
+
 def WPChanger(stime=300):
     import time
     #ClearWP()
-    time.sleep(stime)
+    time.sleep(stime*0.1)
     while True:
-        if not cleared:
+        if not cleared and not IsLocked():
             NextWP()
         time.sleep(stime)
 
