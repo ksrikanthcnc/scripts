@@ -13,12 +13,13 @@ if len(sys.argv) > 1:
 	rootdirs = sys.argv[1:]
 	print('Using paths from args passed')
 else:
+	path = input('Enter path')
 	rootdirs = [
 	#r'C:\Users\Kalyanam\Pictures\latest',
 	#r'C:\Users\Kalyanam\Pictures\latest\Android WallHaven',
 	#r'C:\Users\Kalyanam\Pictures\latest\Ubuntu'
 	]
-
+	rootdirs.append(path)
 paths = []
 for rootdir in rootdirs:
 	print(rootdir)
@@ -28,7 +29,7 @@ for rootdir in rootdirs:
 paths.sort()
 
 jsons = {}
-with open('files\jsons.txt','r+') as file:
+with open(r'..\files\jsons.txt','r+') as file:
 	for line in file.readlines():
 		jsob = json.loads(line[:-1])
 		jsons[jsob['id']] = jsob
@@ -69,4 +70,4 @@ for i, path in enumerate(paths):
 	except FileNotFoundError:
 		print('(Skipping, file not found)')
 	print('')
-print('done')
+input('done;enter to exit')
