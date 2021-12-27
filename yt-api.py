@@ -257,16 +257,16 @@ class YT:
 						return item.get("id")
 				request = self.yt.playlists().list_next(request, results)
 
-		if args['pos'] != 2:
+		botw = args["botw_event"]
+
+		if 'botw' in args["title"]:
+			botw = args["botw_event"]
+			print(f'# in playlist <{botw}>:',end='',flush=True)
+			playlist_id = _get_playlist(f"{GAME} Brawl of the week")
+		else:
 			print(f'# in playlist [{args["title"]}]:',end='',flush=True)
-		else: # event
-			if any([True if item in args['title'] else False for item in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']]) or 'Ranked 1v1' in args['title']:
-				print(f'# in playlist [{args["title"]}]:',end='',flush=True)
-			else:
-				botw = args["title"].replace(f'{GAME} ','')
-				print(f'# in playlist <{botw}>[{GAME} Brawl of the week]:',end='',flush=True)
-				args['title'] = f'{GAME} Brawl of the week'
-		playlist_id = _get_playlist(args["title"])
+			playlist_id = _get_playlist(args["title"])
+
 		if playlist_id is None:
 			num = 1
 			print(f'Fresh playlist: [#{num}]')
@@ -284,23 +284,21 @@ class YT:
 				results = request.execute()
 				for item in results["items"]:
 					if 'videoPublishedAt' in item['contentDetails']:
-						if args['pos'] != 2:
-							count += 1
-						else:
-							if any([True if item in args['title'] else False for item in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']]) or 'Ranked 1v1' in args['title']:
+						if 'botw' in args["title"]:
+							if botw.lower() in item['snippet']['title'].lower():
 								count += 1
-							else:
-								if botw in item['snippet']['title']:
-									count += 1
+						else:
+							count += 1
 					else:
 						del_ids.append(item['contentDetails']['videoId'])
 					if args['id'] == item['contentDetails']['videoId']:
 						num = count
 						print(f'Existing [#{num}]')
+						break
 				request = self.yt.playlistItems().list_next(request, results)
 			if not num:
 				num = count + 1
-				print(f'Next [#{num}]')
+				print(f'[#{num}]')
 			if del_ids != []:
 				print(f'\tDeleted ids in playlist({len(del_ids)}) {[",".join(del_ids)]}')
 			return num
@@ -350,7 +348,7 @@ class YT:
 			else: count_dict[f'{GAME} {event}'] = 1
 
 			# Title
-			title = rf"{GAME} #{count_dict[f'{GAME}']} - {legend.upper()} #{count_dict[f'{GAME} {legend}']} - {event} #{count_dict[f'{GAME} {event}']} - Gameplay (No commentary) Part #{count_dict[f'{GAME} {event}']}"
+			title = rf"{GAME} #{count_dict[f'{GAME}']} - {legend.upper()} #{count_dict[f'{GAME} {legend}']} - {event} #{count_dict[f'{GAME} {event}']} - Gameplay Part #{count_dict[f'{GAME} {event}']}"
 			print(title)
 			if curr_title != title:
 				args = {
@@ -423,7 +421,10 @@ def create_thumbnail(legend, event):
 
 	# Event
 	print(f'Filling poster of [{event}]')
-	event_im = Image.open(rf'{PICS}/events/{event}.png')
+	if is_ranked:
+		event_im = Image.open(rf'{PICS}/events/{event} {tier_event}.png')
+	else:
+		event_im = Image.open(rf'{PICS}/events/{event}.png')
 	event_im = scale(event_im, (Cwidth/2, Cheight-logo.size[1]))
 	pos = centrePos(event_im, (Cwidth//2, logo.size[1], Cwidth, Cheight))
 	if 'A' in event_im.mode:
@@ -432,7 +433,11 @@ def create_thumbnail(legend, event):
 		canvas.paste(event_im, pos)
 
 	# Save
-	filename = f'{PICS}/cache/{legend}-{event}.jpg'
+	if is_ranked:
+		filename = f'{PICS}/cache/{legend}-{event}-{tier_event}.jpg'
+	else:
+		filename = f'{PICS}/cache/{legend}-{event}.jpg'
+	# filename = f'{PICS}/cache/{legend}-{event}.jpg'
 	print(f'Saving [{filename}]')
 	canvas.convert('RGB').save(filename)
 	return filename
@@ -443,6 +448,10 @@ if yt:
 	import os, sys, re
 	PICS = r'./files/bhpics'
 	GAME = 'Brawlhalla'
+	RANKED_EVENT = '1v1 Morph'
+	TIERS = ['Silver','Gold']
+	SEASON = '22'
+	print(f'\nConfig:\n\tRANKED_EVENT={RANKED_EVENT}\n\tSEASON={SEASON}')
 	DESC = \
 '''
 Quicklinks:
@@ -466,8 +475,8 @@ How we do Free to Play:
 -Brawlhalla will always be 100% free to play, with no pay-to-win advantages and no in-game purchases keeping you from the action. None of the premium content affects gameplay.
 -The Legend Rotation of eight free to play characters changes every week, and you can earn gold to unlock more Legends by playing any online game mode.'''
 
-	# Whtia212jk|00:00 Win,02:53 Loss,03:56 Win
 	if len(sys.argv) == 2:
+		# Whtia212jk|00:00 Win,02:53 Loss,03:56 Win
 		id, times = [_.strip() for _ in sys.argv[1].split('|')]
 		times = times.split(',')
 	elif len(sys.argv) == 1:
@@ -489,58 +498,126 @@ How we do Free to Play:
 	else:
 		Exit(f'Incorrect parameters')
 	snippet_title = yt.get_video_details(id)['snippet']['title']
-	existing = re.match(r'Brawlhalla (?:#\d+ )?- ([^-#]+) (?:#\d+ )?- ([^-#]+) (?:#\d+ )?(?:\(#\d+\) )?- Gameplay \(No commentary\) (?:#\d+ )?',snippet_title)
+	skip_part = r'(?:[^-#]+) (?:#\d+)?'
+	brawlhalla_part = s_part = ranked_part = skip_part
+	typical_part = r'([^-#]+) (?:#\d+)?'
+	legend_part = event_part = typical_part
+	# gameplay_part = 'Gameplay \(No commentary\) (?:#\d+ )?'
+	gameplay_part = 'Gameplay (?:#\d+ )?'
+
+	existing_event = re.match(rf'{brawlhalla_part} - {legend_part} - {event_part} - {gameplay_part}',snippet_title)
+	existing_ranked = re.match(rf'{brawlhalla_part} - {legend_part} - {s_part} - {ranked_part} - {event_part} - {gameplay_part}',snippet_title)
 	new = re.match(r'([^-]+)-(.*)',snippet_title)
-	matched = existing or new
-	legend, event = matched.groups()
+	matched = existing_ranked or existing_event or new
+
+	is_ranked = False
+	is_tier = False
+
+	if existing_event:
+		legend, event = matched.groups()
+	elif existing_ranked:
+		legend, ranked_event = existing_ranked.groups()
+		is_ranked = True
+		# tier_event = ranked_event
+		if ranked_event.split()[1] in TIERS:
+			is_tier = True
+			tier_event = f'{ranked_event}'
+		elif ranked_event.split()[1].lower() == 'morph':
+			tier_event = RANKED_EVENT
+		else:
+			Exit('Improper ranked event')
+		event = f'Ranked'
+	elif new:
+		legend, event = matched.groups()
+		event = event.title()
+		if 'Ranked' == event.split()[0]:
+			is_ranked = True
+			ranked_event = event.split()[1]
+			if ranked_event in TIERS:
+				is_tier = True
+				tier_event = f'1v1 {ranked_event}'
+			elif ranked_event.lower() == 'morph':
+				tier_event = RANKED_EVENT
+			else:
+				Exit('Improper ranked event')
+			event = f'Ranked'
+	else:
+		Exit("Something crazy!")
+
 	legend = legend.title()
-	print(f'[{id}]-[{legend}]-[{event}]')
+	if is_ranked:
+		print(f'[{id}]-[{legend}]-[{event} {tier_event}]')
+	else:
+		print(f'[{id}]-[{legend}]-[{event}]')
 
 	while not os.path.exists(rf'{PICS}/legends/{legend}.png'):
 		input(rf'Legend:{legend}.png not found. Add and enter to continue')
-	while not os.path.exists(rf'{PICS}/events/{event}.png'):
-		input(rf'Event:{event}.png not found. Add and enter to continue')
+	if is_ranked:
+		while not os.path.exists(rf'{PICS}/events/{event} {tier_event}.png'):
+			input(rf'Event:[{event} {tier_event}.png] not found. Add and enter to continue')
+	else:
+		while not os.path.exists(rf'{PICS}/events/{event}.png'):
+			input(rf'Event:[{event}.png] not found. Add and enter to continue')
 	print('')
 
 	# Get # from playlist count
 	nums = {}
-	playlists = [f'{GAME}',f'{GAME} {legend}',f'{GAME} {event}']
-	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']:
-		pass
-		# playlists.append(f'{GAME} {event}')
-	elif 'Ranked 1v1' in event:
-		playlists.append(f'{GAME} Ranked 1v1')
-	else:
-		playlists.append(f'{GAME} Brawl of the week')
+	playlists = [f'',f' {legend}',f' {event}']
+	botw_event = ''
+	if is_ranked:
+		playlists.append(f' S{SEASON} Ranked')
+		if is_tier:
+			playlists.append(f' Ranked {tier_event}')
+		else:
+			playlists.append(f' S{SEASON} Ranked {RANKED_EVENT}')
+	elif event not in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']:
+		botw_event = event
+		playlists[-1] = f' Brawl of the week'
+		playlists.append(f' botw_event')
+
+	for i, playlist in enumerate(playlists):
+		playlists[i] = f'{GAME}{playlist}'
+	print(playlists)
 	for i,playlistname in enumerate(playlists):
-		print(id,playlistname)
+		# print(id,playlistname)
 		args={
 			'title':playlistname,
+			'botw_event':botw_event,
 			'pos':i, #Not generic
 			'id':id
 		}
 		nums[playlistname] = yt.get_num(args)
 	print('')
 	# Title
-	# Brawlhalla # 49 - ORION #5 - Ranked 1v1 (Silver) #4 - Gameplay (No commentary) Part #40
+	# Brawlhalla #49 - ORION #5 - Ranked 1v1 (Silver) #4 - Gameplay Part #40
 	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']:
-		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} {event}']}"
-	elif 'Ranked 1v1' in event:
-		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} (#{nums[f'{GAME} Ranked 1v1']}) - Gameplay (No commentary) Part #{nums[f'{GAME} {event}']}"
+		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay Part #{nums[f'{GAME} {event}']}"
+	elif is_ranked:
+		brawlhalla_num = f"{GAME} #{nums[f'{GAME}']} "
+		legend_num = f" {legend.upper()} #{nums[f'{GAME} {legend}']} "
+		s_num = f" S{SEASON} #{nums[f'{GAME} S{SEASON} {event}']} "
+		ranked_num = f" Ranked #{nums[f'{GAME} Ranked']} "
+		if is_tier:
+			event_num = f" {tier_event} #{nums[f'{GAME} Ranked {tier_event}']} "
+		else:
+			event_num = f" {tier_event} #{nums[f'{GAME} S{SEASON} Ranked {tier_event}']} "
+		gameplay_num = f" Gameplay Part #{nums[f'{GAME} {event}']}"
+
+		title = rf"{brawlhalla_num}-{legend_num}-{s_num}-{ranked_num}-{event_num}-{gameplay_num}"
 	else:
-		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[f'{GAME} Brawl of the week']}"
-	# title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} {event}']} - Gameplay (No commentary) Part #{nums[list(nums.keys())[-1]]}"
-	if existing is not None: # Beta
-		title = snippet_title
+		title = rf"{GAME} #{nums[f'{GAME}']} - {legend.upper()} #{nums[f'{GAME} {legend}']} - {event} #{nums[f'{GAME} botw_event']} - Gameplay Part #{nums[f'{GAME} Brawl of the week']}"
 	# Description
 	description = "\n".join(times) + '\n\n' + DESC
 
 	# Update
+	tags = ['zingamigo','zingamigo gaming','amigo','amigocnc','zing']
+	if f'S{SEASON}' in title:
+		tags.extend([f'S{SEASON}',f'Ranked',f'Season {SEASON}'])
 	args = {
 		'id': id,
 		'title':title,
 		'description':description,
-		'tags':['zingamigo','zingamigo gaming'],
+		'tags':tags,
 		'categoryId':20, #Gaming
 		'privacyStatus':'public'
 	}
@@ -556,18 +633,8 @@ How we do Free to Play:
 	yt.thumbnail(args)
 	print('')
 
-	# Setting playlist
-	playlists = [
-		f'{GAME}',
-		f'{GAME} {legend.title()}'
-	]
-	if event in ['Free For All', 'Friendly 2v2', 'Strikeout 1v1', 'Experimental 1v1']:
-		playlists.append(f'{GAME} {event}')
-	elif 'Ranked 1v1' in event:
-		playlists.append(f'{GAME} {event}')
-		playlists.append(f'{GAME} Ranked 1v1')
-	else:
-		playlists.append(f'{GAME} Brawl of the week')
+	if botw_event != '':
+		del(playlists[-1])
 	args={
 		'id':id,
 		'playlists':playlists
